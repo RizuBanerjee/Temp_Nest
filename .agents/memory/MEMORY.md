@@ -1,0 +1,3 @@
+- [Express params cast](express-params-cast.md) — `req.params.X` must be cast `as string` before Drizzle `eq()` or TS2769 overload errors occur
+- [Stripe API version](stripe-version.md) — must use `"2026-05-27.dahlia"` for this project's Stripe SDK version
+- [Return pattern in Express](express-return-pattern.md) — use `res.json(...); return;` not `return res.json()` to satisfy TS7030 in async Express 5 handlers

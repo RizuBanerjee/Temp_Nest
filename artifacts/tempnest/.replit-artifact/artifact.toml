@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "TempNest"
+version = "1.0.0"
+id = "artifacts/tempnest"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 26073
+
+[services.development]
+run = "pnpm --filter @workspace/tempnest run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/tempnest", "run", "build" ]
+publicDir = "artifacts/tempnest/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26073"
+BASE_PATH = "/"

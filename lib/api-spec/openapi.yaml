@@ -3,20 +3,40 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TempNest API - Temporary Email Platform
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: me
+    description: Current user profile
+  - name: inboxes
+    description: Temporary email inboxes
+  - name: emails
+    description: Email messages
+  - name: credits
+    description: Credit wallet and transactions
+  - name: plans
+    description: Subscription plans
+  - name: subscriptions
+    description: User subscriptions
+  - name: payments
+    description: Payment operations
+  - name: dashboard
+    description: Dashboard summary data
+  - name: analytics
+    description: Usage analytics
+  - name: admin
+    description: Admin operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +44,520 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── User Profile ────────────────────────────────────────────────
+  /me:
+    get:
+      operationId: getMe
+      tags: [me]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateMe
+      tags: [me]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+
+  # ── Dashboard ────────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary statistics
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          description: Unauthorized
+
+  # ── Inboxes ──────────────────────────────────────────────────────
+  /inboxes:
+    get:
+      operationId: listInboxes
+      tags: [inboxes]
+      summary: List user's inboxes
+      responses:
+        "200":
+          description: List of inboxes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Inbox"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createInbox
+      tags: [inboxes]
+      summary: Create a new temporary inbox
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InboxInput"
+      responses:
+        "201":
+          description: Created inbox
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inbox"
+        "400":
+          description: Insufficient credits or daily limit reached
+        "401":
+          description: Unauthorized
+
+  /inboxes/{inboxId}:
+    get:
+      operationId: getInbox
+      tags: [inboxes]
+      summary: Get inbox details
+      parameters:
+        - name: inboxId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Inbox details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inbox"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteInbox
+      tags: [inboxes]
+      summary: Delete an inbox
+      parameters:
+        - name: inboxId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /inboxes/{inboxId}/refresh:
+    post:
+      operationId: refreshInbox
+      tags: [inboxes]
+      summary: Refresh inbox to pull new emails
+      parameters:
+        - name: inboxId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Refreshed inbox with latest emails
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboxRefreshResult"
+        "401":
+          description: Unauthorized
+
+  /inboxes/{inboxId}/emails:
+    get:
+      operationId: listInboxEmails
+      tags: [inboxes]
+      summary: List emails in an inbox
+      parameters:
+        - name: inboxId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of emails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Email"
+        "401":
+          description: Unauthorized
+
+  /inboxes/{inboxId}/otp-history:
+    get:
+      operationId: getInboxOtpHistory
+      tags: [inboxes]
+      summary: Get OTP extraction history for an inbox
+      parameters:
+        - name: inboxId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OTP history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OtpRecord"
+        "401":
+          description: Unauthorized
+
+  # ── Emails ───────────────────────────────────────────────────────
+  /emails/{emailId}:
+    get:
+      operationId: getEmail
+      tags: [emails]
+      summary: Get email details
+      parameters:
+        - name: emailId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailDetail"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /emails/{emailId}/read:
+    patch:
+      operationId: markEmailRead
+      tags: [emails]
+      summary: Mark email as read
+      parameters:
+        - name: emailId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkReadInput"
+      responses:
+        "200":
+          description: Updated email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Email"
+        "401":
+          description: Unauthorized
+
+  /emails/{emailId}/otp:
+    get:
+      operationId: extractEmailOtp
+      tags: [emails]
+      summary: Extract OTP from email body
+      parameters:
+        - name: emailId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Extracted OTP result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpExtraction"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  # ── Credits ──────────────────────────────────────────────────────
+  /credits:
+    get:
+      operationId: getCredits
+      tags: [credits]
+      summary: Get credit wallet info
+      responses:
+        "200":
+          description: Credit wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditWallet"
+        "401":
+          description: Unauthorized
+
+  /credits/transactions:
+    get:
+      operationId: listCreditTransactions
+      tags: [credits]
+      summary: List credit transactions
+      responses:
+        "200":
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CreditTransaction"
+        "401":
+          description: Unauthorized
+
+  # ── Plans ────────────────────────────────────────────────────────
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [plans]
+      summary: List available subscription plans
+      responses:
+        "200":
+          description: Plans list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Plan"
+
+  # ── Subscriptions ────────────────────────────────────────────────
+  /subscriptions/current:
+    get:
+      operationId: getCurrentSubscription
+      tags: [subscriptions]
+      summary: Get current user subscription
+      responses:
+        "200":
+          description: Current subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "401":
+          description: Unauthorized
+
+  # ── Payments ─────────────────────────────────────────────────────
+  /payments/checkout:
+    post:
+      operationId: createCheckoutSession
+      tags: [payments]
+      summary: Create a Stripe checkout session for credit purchase or plan upgrade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutInput"
+      responses:
+        "200":
+          description: Checkout session URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutSession"
+        "401":
+          description: Unauthorized
+
+  /payments/webhook:
+    post:
+      operationId: handlePaymentWebhook
+      tags: [payments]
+      summary: Handle Stripe webhook events
+      responses:
+        "200":
+          description: Webhook processed
+
+  # ── Analytics ────────────────────────────────────────────────────
+  /analytics/usage:
+    get:
+      operationId: getUsageAnalytics
+      tags: [analytics]
+      summary: Get usage analytics for the current user
+      responses:
+        "200":
+          description: Usage analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageAnalytics"
+        "401":
+          description: Unauthorized
+
+  # ── Admin ────────────────────────────────────────────────────────
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get admin dashboard statistics
+      responses:
+        "200":
+          description: Admin stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all users (admin)
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserPage"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/users/{userId}:
+    patch:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Update a user (suspend, ban, grant credits)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Delete a user (admin)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/inboxes:
+    get:
+      operationId: listAdminInboxes
+      tags: [admin]
+      summary: List all inboxes (admin)
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: All inboxes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminInboxPage"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /admin/revenue:
+    get:
+      operationId: getAdminRevenue
+      tags: [admin]
+      summary: Get revenue analytics (admin)
+      responses:
+        "200":
+          description: Revenue analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRevenue"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +568,480 @@ components:
       required:
         - status
 
+    # ── User ────────────────────────────────────────────────────────
+    UserProfile:
+      type: object
+      required: [id, clerkId, email, name, plan, credits, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        plan:
+          type: string
+          enum: [free, pro, business]
+        credits:
+          type: integer
+        maxCredits:
+          type: integer
+        dailyRefill:
+          type: integer
+        activeInboxCount:
+          type: integer
+        maxInboxes:
+          type: integer
+        status:
+          type: string
+          enum: [active, suspended, banned]
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+
+    # ── Dashboard ────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [credits, inboxCount, emailsToday, otpsExtracted, creditsUsedToday]
+      properties:
+        credits:
+          type: integer
+        maxCredits:
+          type: integer
+        inboxCount:
+          type: integer
+        maxInboxes:
+          type: integer
+        emailsToday:
+          type: integer
+        otpsExtracted:
+          type: integer
+        creditsUsedToday:
+          type: integer
+        recentEmails:
+          type: array
+          items:
+            $ref: "#/components/schemas/Email"
+
+    # ── Inbox ────────────────────────────────────────────────────────
+    Inbox:
+      type: object
+      required: [id, address, domain, isActive, createdAt, emailCount, unreadCount]
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+        domain:
+          type: string
+        isActive:
+          type: boolean
+        isPriority:
+          type: boolean
+        expiresAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        emailCount:
+          type: integer
+        unreadCount:
+          type: integer
+
+    InboxInput:
+      type: object
+      properties:
+        customName:
+          type: ["string", "null"]
+        isPriority:
+          type: boolean
+
+    InboxRefreshResult:
+      type: object
+      required: [newEmails, inbox]
+      properties:
+        newEmails:
+          type: integer
+        inbox:
+          $ref: "#/components/schemas/Inbox"
+
+    # ── Email ────────────────────────────────────────────────────────
+    Email:
+      type: object
+      required: [id, inboxId, from, subject, isRead, createdAt]
+      properties:
+        id:
+          type: string
+        inboxId:
+          type: string
+        from:
+          type: string
+        subject:
+          type: string
+        preview:
+          type: string
+        isRead:
+          type: boolean
+        hasOtp:
+          type: boolean
+        otpCode:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    EmailDetail:
+      type: object
+      required: [id, inboxId, from, subject, isRead, createdAt]
+      properties:
+        id:
+          type: string
+        inboxId:
+          type: string
+        from:
+          type: string
+        subject:
+          type: string
+        bodyText:
+          type: ["string", "null"]
+        bodyHtml:
+          type: ["string", "null"]
+        isRead:
+          type: boolean
+        hasOtp:
+          type: boolean
+        otpCode:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    MarkReadInput:
+      type: object
+      required: [isRead]
+      properties:
+        isRead:
+          type: boolean
+
+    # ── OTP ─────────────────────────────────────────────────────────
+    OtpExtraction:
+      type: object
+      required: [found]
+      properties:
+        found:
+          type: boolean
+        code:
+          type: ["string", "null"]
+        length:
+          type: ["integer", "null"]
+
+    OtpRecord:
+      type: object
+      required: [id, emailId, code, extractedAt]
+      properties:
+        id:
+          type: integer
+        emailId:
+          type: string
+        code:
+          type: string
+        length:
+          type: integer
+        extractedAt:
+          type: string
+
+    # ── Credits ──────────────────────────────────────────────────────
+    CreditWallet:
+      type: object
+      required: [balance, maxBalance, dailyRefill, lastRefillAt]
+      properties:
+        balance:
+          type: integer
+        maxBalance:
+          type: integer
+        dailyRefill:
+          type: integer
+        lastRefillAt:
+          type: ["string", "null"]
+
+    CreditTransaction:
+      type: object
+      required: [id, type, amount, description, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [debit, credit, refund, purchase, refill]
+        amount:
+          type: integer
+        description:
+          type: string
+        balanceAfter:
+          type: integer
+        createdAt:
+          type: string
+
+    # ── Plans ────────────────────────────────────────────────────────
+    Plan:
+      type: object
+      required: [id, name, price, credits, maxInboxes, features]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price:
+          type: integer
+        currency:
+          type: string
+        billingPeriod:
+          type: string
+        credits:
+          type: integer
+        maxInboxes:
+          type: integer
+        maxCredits:
+          type: integer
+        dailyRefill:
+          type: integer
+        features:
+          type: array
+          items:
+            type: string
+        stripePriceId:
+          type: ["string", "null"]
+
+    # ── Subscriptions ────────────────────────────────────────────────
+    Subscription:
+      type: object
+      required: [planId, planName, status, currentPeriodEnd]
+      properties:
+        planId:
+          type: string
+        planName:
+          type: string
+        status:
+          type: string
+          enum: [active, cancelled, past_due, free]
+        currentPeriodEnd:
+          type: ["string", "null"]
+        cancelAtPeriodEnd:
+          type: boolean
+
+    # ── Payments ─────────────────────────────────────────────────────
+    CheckoutInput:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [credits, subscription]
+        planId:
+          type: ["string", "null"]
+        creditPackId:
+          type: ["string", "null"]
+
+    CheckoutSession:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+
+    # ── Analytics ────────────────────────────────────────────────────
+    UsageAnalytics:
+      type: object
+      required: [daily, totals]
+      properties:
+        daily:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyUsage"
+        totals:
+          $ref: "#/components/schemas/UsageTotals"
+
+    DailyUsage:
+      type: object
+      required: [date, emailsReceived, inboxesCreated, creditsUsed, otpsExtracted]
+      properties:
+        date:
+          type: string
+        emailsReceived:
+          type: integer
+        inboxesCreated:
+          type: integer
+        creditsUsed:
+          type: integer
+        otpsExtracted:
+          type: integer
+
+    UsageTotals:
+      type: object
+      required: [totalEmails, totalInboxes, totalCreditsUsed, totalOtps]
+      properties:
+        totalEmails:
+          type: integer
+        totalInboxes:
+          type: integer
+        totalCreditsUsed:
+          type: integer
+        totalOtps:
+          type: integer
+
+    # ── Admin ────────────────────────────────────────────────────────
+    AdminStats:
+      type: object
+      required: [totalUsers, activeUsers, totalInboxes, totalEmails, totalRevenue, creditsIssued]
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        totalInboxes:
+          type: integer
+        totalEmails:
+          type: integer
+        totalRevenue:
+          type: number
+        creditsIssued:
+          type: integer
+        proUsers:
+          type: integer
+        businessUsers:
+          type: integer
+        newUsersToday:
+          type: integer
+        emailsToday:
+          type: integer
+
+    AdminUser:
+      type: object
+      required: [id, clerkId, email, name, plan, credits, status, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        plan:
+          type: string
+        credits:
+          type: integer
+        status:
+          type: string
+        inboxCount:
+          type: integer
+        emailCount:
+          type: integer
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+
+    AdminUserPage:
+      type: object
+      required: [users, total, page, pageSize]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    AdminUserUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, suspended, banned]
+        grantCredits:
+          type: integer
+        plan:
+          type: string
+          enum: [free, pro, business]
+
+    AdminInboxPage:
+      type: object
+      required: [inboxes, total, page, pageSize]
+      properties:
+        inboxes:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminInboxItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+
+    AdminInboxItem:
+      type: object
+      required: [id, address, userId, isActive, emailCount, createdAt]
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+        userId:
+          type: integer
+        userEmail:
+          type: string
+        isActive:
+          type: boolean
+        emailCount:
+          type: integer
+        createdAt:
+          type: string
+
+    AdminRevenue:
+      type: object
+      required: [totalRevenue, monthly]
+      properties:
+        totalRevenue:
+          type: number
+        monthly:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyRevenue"
+        planDistribution:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanDistribution"
+
+    MonthlyRevenue:
+      type: object
+      required: [month, revenue, transactions]
+      properties:
+        month:
+          type: string
+        revenue:
+          type: number
+        transactions:
+          type: integer
+
+    PlanDistribution:
+      type: object
+      required: [plan, count, percentage]
+      properties:
+        plan:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number

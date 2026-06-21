@@ -1,0 +1,799 @@
+You are a world-class Senior Full-Stack Architect, SaaS Product Designer, Database Engineer, Security Engineer, DevOps Engineer, and UI/UX Specialist.
+
+Your task is to design and build a complete production-quality SaaS web application called:
+
+TEMPNEST
+
+A modern Temporary Email Platform with:
+- Credit-based usage system
+- Free and Premium plans
+- Admin Dashboard
+- Firebase Authentication
+- PostgreSQL Database
+- Razorpay Payments
+- Mail.tm integration for free email infrastructure
+- Future migration support to self-hosted mail servers
+
+========================================================
+PRIMARY OBJECTIVE
+========================================================
+
+Build a professional SaaS platform that allows users to:
+
+• Generate temporary email addresses
+• Receive emails in real-time
+• Extract OTPs automatically
+• Manage multiple inboxes
+• Purchase credits
+• Upgrade to premium plans
+• Track usage
+• Manage subscriptions
+• Access usage analytics
+
+The platform must be capable of running completely on free tiers during development and early launch.
+
+Use:
+
+Frontend:
+- Next.js (Latest App Router)
+- React
+- TypeScript
+- Tailwind CSS
+- Shadcn UI
+- Framer Motion
+
+Backend:
+- FastAPI (Python)
+
+Database:
+- PostgreSQL
+
+Authentication:
+- Firebase Authentication
+
+Payments:
+- Razorpay
+
+Email Service:
+- Mail.tm API
+
+State Management:
+- Zustand
+
+Deployment:
+- Vercel (Frontend)
+- Render/Railway (Backend)
+
+Realtime Updates:
+- WebSockets
+
+========================================================
+SYSTEM ARCHITECTURE
+========================================================
+
+Create a scalable architecture with:
+
+Frontend Layer
+
+API Layer
+
+Business Logic Layer
+
+Credit Engine Layer
+
+Subscription Layer
+
+Database Layer
+
+Admin Layer
+
+Analytics Layer
+
+Security Layer
+
+Future Self-Hosted Email Layer
+
+Ensure the architecture can later replace Mail.tm with:
+
+- Postfix
+- Haraka
+- Mailcow
+
+without major code changes.
+
+========================================================
+AUTHENTICATION SYSTEM
+========================================================
+
+Implement Firebase Authentication.
+
+Support:
+
+1. Google Login
+
+2. Email + Password Login
+
+3. Guest Login
+
+4. Password Reset
+
+5. Email Verification
+
+User profile should contain:
+
+- Name
+- Email
+- Credits
+- Plan
+- Active Inboxes
+- Usage Statistics
+- Subscription Status
+- Account Creation Date
+
+========================================================
+TEMP EMAIL SYSTEM
+========================================================
+
+Integrate Mail.tm API.
+
+Users can:
+
+- Generate temporary email
+- Create custom inbox names
+- Delete inboxes
+- Refresh inboxes
+- View received emails
+- Search emails
+- Copy email address
+- Export inbox
+
+Support:
+
+Inbox List
+
+Email Details
+
+Attachments
+
+Timestamps
+
+Read/Unread Status
+
+Inbox Expiry
+
+========================================================
+OTP EXTRACTION ENGINE
+========================================================
+
+Automatically detect:
+
+4 digit OTP
+
+5 digit OTP
+
+6 digit OTP
+
+8 digit OTP
+
+Examples:
+
+"Your OTP is 847392"
+
+Display:
+
+OTP DETECTED
+
+847392
+
+Provide:
+
+Copy OTP button
+
+Highlight OTP in email
+
+Store OTP history
+
+========================================================
+EMAIL SUMMARIZATION
+========================================================
+
+Create an AI-ready summarization service.
+
+Current Version:
+
+Rule-based NLP summarization
+
+Future Compatible:
+
+- Ollama
+- Gemini
+- OpenAI
+- Claude
+
+Example:
+
+Original:
+"Your Amazon order has shipped."
+
+Summary:
+"Order shipped successfully."
+
+========================================================
+SMART CREDIT ECONOMY
+========================================================
+
+This is one of the most important parts.
+
+Design a balanced credit economy that:
+
+1. Encourages daily usage.
+2. Prevents abuse.
+3. Rewards active users.
+4. Converts power users into paid users.
+5. Prevents infinite free usage.
+
+--------------------------------------------------------
+FREE PLAN
+--------------------------------------------------------
+
+Starting Credits:
+100
+
+Maximum Credit Balance:
+100
+
+Daily Refill:
+20 Credits Per Day
+
+Refill Rule:
+
+If current credits < 100
+
+Add 20 credits daily.
+
+Examples:
+
+Current Credits = 30
+Next Day = 50
+
+Current Credits = 95
+Next Day = 100
+
+Current Credits = 100
+No refill.
+
+This creates user retention while limiting abuse.
+
+--------------------------------------------------------
+CREDIT COSTS
+--------------------------------------------------------
+
+Generate Inbox:
+2 Credits
+
+Receive Email:
+1 Credit
+
+Refresh Inbox:
+1 Credit
+
+Store Email For 24 Hours:
+1 Credit
+
+Custom Inbox Name:
+5 Credits
+
+Export Inbox:
+10 Credits
+
+AI Summary:
+2 Credits
+
+Priority Inbox:
+10 Credits
+
+Premium Domain:
+10 Credits
+
+Additional Active Inbox:
+10 Credits
+
+========================================================
+FAIR USAGE CREDIT ENGINE
+========================================================
+
+Create a dynamic credit calculation service.
+
+Formula:
+
+Usage Score =
+(Inboxes Created × 2)
++
+(Emails Received × 1)
++
+(Storage Days × 1)
++
+(Exports × 10)
+
+Credits are deducted automatically.
+
+Implement:
+
+- Credit Transaction Logs
+- Credit Refund System
+- Credit Expiry Rules
+- Credit Audit Trail
+
+========================================================
+ABUSE PREVENTION SYSTEM
+========================================================
+
+Implement:
+
+Daily Inbox Limit
+
+Free User:
+5 Inboxes Per Day
+
+Pro User:
+Unlimited
+
+Email Receive Limit
+
+Free User:
+50 Emails Per Day
+
+Pro User:
+Unlimited
+
+Rate Limiting
+
+IP Monitoring
+
+Device Fingerprinting
+
+Bot Detection
+
+Suspicious Activity Scoring
+
+Automatic Abuse Flagging
+
+========================================================
+SUBSCRIPTION SYSTEM
+========================================================
+
+FREE
+
+100 Credit Cap
+
+20 Daily Credit Refill
+
+1 Active Inbox
+
+7 Day Email History
+
+--------------------------------------------------------
+
+PRO
+
+₹99/month
+
+1000 Credits Monthly
+
+5 Active Inboxes
+
+Unlimited Email History
+
+Priority Processing
+
+No Ads
+
+--------------------------------------------------------
+
+BUSINESS
+
+₹299/month
+
+5000 Credits Monthly
+
+Unlimited Inboxes
+
+API Access
+
+Advanced Analytics
+
+Priority Support
+
+========================================================
+PAYMENTS
+========================================================
+
+Integrate Razorpay.
+
+Support:
+
+Monthly Plans
+
+Annual Plans
+
+Credit Purchases
+
+Credit Packs
+
+₹49 = 500 Credits
+
+₹99 = 1200 Credits
+
+₹199 = 3000 Credits
+
+₹499 = 10000 Credits
+
+Store:
+
+Transactions
+
+Invoices
+
+Subscription Status
+
+Payment Logs
+
+Refund Requests
+
+========================================================
+ADMIN DASHBOARD
+========================================================
+
+Create a completely separate admin application.
+
+Admin access must never be exposed publicly.
+
+Roles:
+
+SUPER_ADMIN
+
+ADMIN
+
+MODERATOR
+
+========================================================
+ADMIN FEATURES
+========================================================
+
+Dashboard Statistics
+
+Display:
+
+Total Users
+
+Active Users
+
+Total Emails
+
+Total Inboxes
+
+Credits Used
+
+Revenue
+
+Subscriptions
+
+Growth Trends
+
+--------------------------------------------------------
+
+User Management
+
+View Users
+
+Search Users
+
+Suspend Users
+
+Ban Users
+
+Delete Users
+
+Reset Credits
+
+Grant Credits
+
+Upgrade Plans
+
+Downgrade Plans
+
+View Activity Logs
+
+--------------------------------------------------------
+
+Email Management
+
+View Inboxes
+
+Delete Inboxes
+
+Delete Emails
+
+Monitor Abuse
+
+View OTP Usage
+
+--------------------------------------------------------
+
+Payment Management
+
+View Payments
+
+View Revenue
+
+View Credit Purchases
+
+Refund Requests
+
+Subscription Analytics
+
+--------------------------------------------------------
+
+System Settings
+
+Credit Settings
+
+Pricing Settings
+
+Feature Toggles
+
+Domain Settings
+
+Maintenance Mode
+
+========================================================
+ANALYTICS DASHBOARD
+========================================================
+
+Create beautiful SaaS analytics pages.
+
+Charts:
+
+Daily Active Users
+
+Monthly Active Users
+
+Inbox Creation Trends
+
+Email Traffic
+
+Revenue Trends
+
+Credit Consumption
+
+Plan Distribution
+
+Top Users
+
+Retention Metrics
+
+Use:
+
+Recharts
+
+Interactive Filters
+
+Date Range Filters
+
+========================================================
+DATABASE DESIGN
+========================================================
+
+Create complete PostgreSQL schema.
+
+Required Tables:
+
+users
+
+user_profiles
+
+plans
+
+subscriptions
+
+payments
+
+payment_logs
+
+credit_wallets
+
+credit_transactions
+
+inboxes
+
+emails
+
+attachments
+
+otp_records
+
+notifications
+
+admin_users
+
+admin_logs
+
+audit_logs
+
+system_settings
+
+analytics_snapshots
+
+abuse_reports
+
+========================================================
+SECURITY
+========================================================
+
+Implement:
+
+Firebase Token Verification
+
+JWT Authentication
+
+Role-Based Access Control
+
+CSRF Protection
+
+XSS Protection
+
+SQL Injection Prevention
+
+Rate Limiting
+
+Request Validation
+
+Audit Logging
+
+Admin Action Tracking
+
+Secure Environment Variables
+
+========================================================
+UI / UX REQUIREMENTS
+========================================================
+
+Design quality should feel like:
+
+Stripe
+
+Linear
+
+Notion
+
+Vercel
+
+Clerk
+
+Modern SaaS quality.
+
+Features:
+
+Dark Mode
+
+Light Mode
+
+Responsive Design
+
+Mobile First
+
+Glassmorphism
+
+Smooth Animations
+
+Micro Interactions
+
+Loading Skeletons
+
+Toast Notifications
+
+Professional Empty States
+
+========================================================
+PAGES TO BUILD
+========================================================
+
+Public:
+
+Landing Page
+
+Features
+
+Pricing
+
+FAQ
+
+Contact
+
+Terms
+
+Privacy Policy
+
+--------------------------------------------------------
+
+Authenticated:
+
+Dashboard
+
+Inboxes
+
+Email Viewer
+
+Credits
+
+Subscriptions
+
+Profile
+
+Settings
+
+Usage Analytics
+
+--------------------------------------------------------
+
+Admin:
+
+Admin Dashboard
+
+Admin Users
+
+Admin Emails
+
+Admin Payments
+
+Admin Analytics
+
+Admin Settings
+
+========================================================
+DELIVERABLES
+========================================================
+
+Generate:
+
+1. Complete folder structure
+
+2. Frontend architecture
+
+3. Backend architecture
+
+4. Database schema
+
+5. ER Diagram
+
+6. API documentation
+
+7. Firebase integration
+
+8. Razorpay integration
+
+9. Credit engine implementation
+
+10. Admin dashboard implementation
+
+11. Security implementation
+
+12. WebSocket implementation
+
+13. Analytics implementation
+
+14. Deployment instructions
+
+15. Environment variables
+
+16. Docker setup
+
+17. CI/CD workflow
+
+18. Testing strategy
+
+19. Production-ready code
+
+20. Future migration plan from Mail.tm to self-hosted mail infrastructure
+
+The final product must be scalable, secure, visually premium, production-ready, and capable of becoming a real SaaS business with a sustainable free-tier credit economy and conversion-focused paid plans.
