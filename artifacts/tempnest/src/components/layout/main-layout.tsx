@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { 
   LayoutDashboard, 
   Inbox, 
@@ -44,8 +45,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-[100dvh] bg-background text-foreground flex">
       {/* Sidebar */}
       <aside className="w-64 border-r border-border/40 bg-card/30 flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-border/40">
+        <div className="h-16 flex items-center justify-between px-6 border-b border-border/40">
           <Logo />
+          <ThemeToggle />
         </div>
         
         <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">
@@ -88,11 +90,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
         <div className="p-4 border-t border-border/40">
           <div className="flex items-center gap-3 px-2 py-2 mb-4">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
+            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
               {user?.firstName?.[0] || user?.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() || "U"}
             </div>
             <div className="overflow-hidden">
-              <p className="text-sm font-medium truncate">{user?.fullName || "User"}</p>
+              <p className="text-sm font-medium truncate">{user?.fullName || dbUser?.name || "User"}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.emailAddresses[0]?.emailAddress}</p>
             </div>
           </div>

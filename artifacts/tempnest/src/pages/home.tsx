@@ -1,8 +1,226 @@
+import { useState, useEffect, useRef } from "react";
 import { PublicLayout } from "@/components/layout/public-layout";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { Shield, Zap, Mail, Key } from "lucide-react";
-import { motion } from "framer-motion";
+import { Shield, Zap, Mail, Key, Copy, Check, RefreshCw, Trash2, Clock, ArrowRight, Lock, Globe } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+interface TempInbox {
+  id: string;
+  address: string;
+  token: string | null;
+}
+
+interface TempEmail {
+  id: string;
+  from: string;
+  subject: string;
+  preview: string;
+  hasOtp: boolean;
+  otpCode: string | null;
+  createdAt: string;
+}
+
+function TryItSection() {
+  const [inbox, setInbox] = useState<TempInbox | null>(null);
+  const [emails, setEmails] = useState<TempEmail[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  async function generateInbox() {
+    setLoading(true);
+    setEmails([]);
+    try {
+      const res = await fetch(`${BASE}/api/public/temp-inbox`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setInbox(data);
+      setCountdown(30);
+      startCountdown(data);
+    } catch {
+      toast.error("Could not generate inbox. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function checkEmails(inboxData: TempInbox) {
+    if (!inboxData.token) return;
+    try {
+      const res = await fetch(`${BASE}/api/public/temp-inbox/messages?token=${encodeURIComponent(inboxData.token)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setEmails(data);
+    } catch {}
+  }
+
+  async function handleRefresh() {
+    if (!inbox) return;
+    setRefreshing(true);
+    await checkEmails(inbox);
+    setCountdown(30);
+    setRefreshing(false);
+    toast.success("Inbox refreshed");
+  }
+
+  function startCountdown(inboxData: TempInbox) {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(30);
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          checkEmails(inboxData);
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  function handleCopy() {
+    if (!inbox) return;
+    navigator.clipboard.writeText(inbox.address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast.success("Address copied!");
+  }
+
+  function handleDelete() {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setInbox(null);
+    setEmails([]);
+  }
+
+  useEffect(() => {
+    generateInbox();
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+  }, []);
+
+  return (
+    <section id="try-it" className="py-24 bg-background">
+      <div className="container mx-auto px-4">
+        <div className="text-center mb-12">
+          <Badge className="bg-primary/10 text-primary border-primary/20 mb-4 px-3 py-1">No account needed</Badge>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Try it right now</h2>
+          <p className="text-muted-foreground max-w-xl mx-auto">
+            Your temporary email address is ready. Use it anywhere, receive emails instantly — no sign-up required.
+          </p>
+        </div>
+
+        <div className="max-w-2xl mx-auto">
+          {/* Email address display */}
+          <div className="border-2 border-dashed border-primary/30 rounded-2xl p-6 bg-primary/5 mb-5">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-medium">Your Temporary Email Address</p>
+            {loading ? (
+              <div className="h-10 bg-muted/50 rounded-lg animate-pulse" />
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="flex-1 font-mono text-xl font-semibold text-foreground bg-background/60 px-4 py-2.5 rounded-xl border border-border/60 truncate">
+                  {inbox?.address}
+                </div>
+                <button
+                  onClick={handleCopy}
+                  className="w-11 h-11 rounded-xl bg-background border border-border/60 flex items-center justify-center hover:bg-muted hover:border-primary/40 transition-all shrink-0"
+                >
+                  {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} className="text-muted-foreground" />}
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-3">
+              Share this address, then watch emails arrive below. Auto-refreshes every {countdown}s.
+            </p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-3 mb-6">
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing || !inbox} className="gap-2 flex-1">
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+              Refresh ({countdown}s)
+            </Button>
+            <Button variant="outline" size="sm" onClick={generateInbox} disabled={loading} className="gap-2 flex-1">
+              <Mail size={14} />
+              New Address
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleDelete} className="gap-2 text-destructive hover:text-destructive">
+              <Trash2 size={14} />
+              Delete
+            </Button>
+          </div>
+
+          {/* Inbox table */}
+          <div className="rounded-2xl border border-border overflow-hidden">
+            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-muted/30 border-b border-border">
+              <div className="col-span-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Sender</div>
+              <div className="col-span-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Subject</div>
+              <div className="col-span-2 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">Time</div>
+            </div>
+
+            <AnimatePresence>
+              {emails.length === 0 ? (
+                <div className="py-20 text-center">
+                  <div className="relative inline-flex mb-5">
+                    <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+                      <Mail size={28} className="text-muted-foreground/40" />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary/30 flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                    </div>
+                  </div>
+                  <p className="font-semibold text-foreground mb-1">Your inbox is empty</p>
+                  <p className="text-sm text-muted-foreground">Waiting for incoming emails…</p>
+                  <p className="text-xs text-muted-foreground/60 mt-2">Auto-refreshing every {countdown} seconds</p>
+                </div>
+              ) : (
+                emails.map((email, i) => (
+                  <motion.div
+                    key={email.id}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="grid grid-cols-12 gap-2 px-4 py-3.5 border-b border-border/30 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
+                  >
+                    <div className="col-span-4 flex items-center gap-2 min-w-0">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                      <span className="font-mono text-xs truncate text-muted-foreground">{email.from}</span>
+                    </div>
+                    <div className="col-span-6 flex items-center gap-2 min-w-0">
+                      <span className="text-sm truncate font-medium">{email.subject}</span>
+                      {email.hasOtp && (
+                        <Badge className="text-[10px] px-1.5 py-0 bg-primary/15 text-primary border-primary/20 shrink-0 animate-pulse">
+                          OTP: {email.otpCode}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="col-span-2 text-xs text-muted-foreground text-right flex items-center justify-end">
+                      <Clock size={10} className="mr-1" />
+                      {new Date(email.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="mt-8 text-center">
+            <p className="text-muted-foreground text-sm mb-4">Want to save emails, extract OTPs, and manage multiple inboxes?</p>
+            <Link href="/sign-up">
+              <Button className="gap-2 h-11 px-8">
+                Create free account <ArrowRight size={16} />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function Home() {
   return (
@@ -42,15 +260,18 @@ export default function Home() {
                   Start For Free
                 </Button>
               </Link>
-              <Link href="/pricing">
+              <a href="#try-it">
                 <Button size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 text-base">
-                  View Pricing
+                  Try it now — no signup
                 </Button>
-              </Link>
+              </a>
             </div>
           </motion.div>
         </div>
       </section>
+
+      {/* Try It Section */}
+      <TryItSection />
 
       {/* Features */}
       <section id="features" className="py-24 bg-card/30 border-y border-border/40">
@@ -61,29 +282,76 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <div className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-6">
-                <Zap size={24} />
+            {[
+              {
+                icon: Zap,
+                title: "Instant Setup",
+                desc: "Generate a new inbox in milliseconds. Emails arrive in real-time with automatic 30-second polling.",
+                color: "text-amber-400",
+                bg: "bg-amber-400/10",
+              },
+              {
+                icon: Key,
+                title: "Auto OTP Extraction",
+                desc: "We automatically find and highlight verification codes so you can copy them with one click.",
+                color: "text-primary",
+                bg: "bg-primary/10",
+              },
+              {
+                icon: Shield,
+                title: "Privacy First",
+                desc: "No tracking scripts. Emails are automatically wiped after they expire. You own your data.",
+                color: "text-emerald-400",
+                bg: "bg-emerald-400/10",
+              },
+              {
+                icon: Lock,
+                title: "Credit-Based Fair Use",
+                desc: "Transparent pricing with credits. Free plan gives 20 credits/day. No hidden fees, ever.",
+                color: "text-violet-400",
+                bg: "bg-violet-400/10",
+              },
+              {
+                icon: Globe,
+                title: "Real Mail.tm Backend",
+                desc: "Powered by Mail.tm — a real email service. Emails actually arrive, no simulation.",
+                color: "text-cyan-400",
+                bg: "bg-cyan-400/10",
+              },
+              {
+                icon: Mail,
+                title: "Multi-Inbox Management",
+                desc: "Pro users can manage 5 inboxes simultaneously. Business gets unlimited. Full email history kept.",
+                color: "text-rose-400",
+                bg: "bg-rose-400/10",
+              },
+            ].map((f) => (
+              <div key={f.title} className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors">
+                <div className={`w-12 h-12 rounded-lg ${f.bg} flex items-center justify-center ${f.color} mb-6`}>
+                  <f.icon size={24} />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">{f.title}</h3>
+                <p className="text-muted-foreground text-sm">{f.desc}</p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Instant Setup</h3>
-              <p className="text-muted-foreground">Generate a new inbox in milliseconds. Receive emails instantly with WebSockets.</p>
-            </div>
-            
-            <div className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-6">
-                <Key size={24} />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Auto OTP Extraction</h3>
-              <p className="text-muted-foreground">We automatically find and highlight verification codes so you can copy them with one click.</p>
-            </div>
-            
-            <div className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors">
-              <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-6">
-                <Shield size={24} />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Privacy First</h3>
-              <p className="text-muted-foreground">No tracking scripts. Emails are automatically wiped after they expire. You own your data.</p>
-            </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-24">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to protect your real inbox?</h2>
+          <p className="text-muted-foreground max-w-xl mx-auto mb-8">
+            Join thousands of users who use TempNest to keep spam out and stay anonymous online.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/sign-up">
+              <Button size="lg" className="h-12 px-8">Get Started Free</Button>
+            </Link>
+            <Link href="/pricing">
+              <Button size="lg" variant="outline" className="h-12 px-8">View Pricing</Button>
+            </Link>
           </div>
         </div>
       </section>

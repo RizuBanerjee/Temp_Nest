@@ -1,21 +1,30 @@
-import { useGetCredits, useListCreditTransactions, useListPlans, useCreateCheckoutSession, getGetCreditsQueryKey } from "@workspace/api-client-react";
+import { useGetCredits, useListCreditTransactions, useCreateCheckoutSession } from "@workspace/api-client-react";
 import { MainLayout } from "@/components/layout/main-layout";
+import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, TrendingUp, TrendingDown, Package, Star } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Package, Star, Info } from "lucide-react";
 import { toast } from "sonner";
 
 const CREDIT_PACKS = [
-  { id: "pack_500", name: "Starter", credits: 500, price: "$4.99", highlight: false },
-  { id: "pack_1200", name: "Value", credits: 1200, price: "$9.99", highlight: true },
-  { id: "pack_3000", name: "Pro Pack", credits: 3000, price: "$19.99", highlight: false },
-  { id: "pack_10000", name: "Business", credits: 10000, price: "$49.99", highlight: false },
+  { id: "pack_500", name: "Starter", credits: 500, price: "$4.99", perCredit: "$0.01", highlight: false },
+  { id: "pack_1200", name: "Value", credits: 1200, price: "$9.99", perCredit: "$0.0083", highlight: true },
+  { id: "pack_3000", name: "Pro Pack", credits: 3000, price: "$19.99", perCredit: "$0.0067", highlight: false },
+  { id: "pack_10000", name: "Business", credits: 10000, price: "$49.99", perCredit: "$0.005", highlight: false },
+];
+
+const CREDIT_COSTS = [
+  { action: "Create inbox", cost: "2 credits" },
+  { action: "Custom inbox name", cost: "+5 credits" },
+  { action: "Priority inbox", cost: "+10 credits" },
+  { action: "Refresh inbox", cost: "1 credit" },
+  { action: "Receive email", cost: "1 credit" },
 ];
 
 function CreditBar({ current, max }: { current: number; max: number }) {
-  const pct = max > 0 ? (current / max) * 100 : 0;
+  const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
   const color = pct > 50 ? "bg-emerald-500" : pct > 20 ? "bg-amber-500" : "bg-red-500";
   return (
     <div className="space-y-2">
@@ -26,6 +35,7 @@ function CreditBar({ current, max }: { current: number; max: number }) {
       <div className="h-3 w-full rounded-full bg-muted overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
+      <p className="text-xs text-muted-foreground">{pct.toFixed(0)}% of your credit limit remaining</p>
     </div>
   );
 }
@@ -39,7 +49,7 @@ export default function Credits() {
     try {
       const result = await checkout.mutateAsync({ data: { type: "credits", creditPackId: packId } });
       if (result.url?.includes("error")) {
-        toast.error("Stripe is not configured yet. Add your Stripe keys to enable payments.");
+        toast.error("Stripe is not configured yet. Add STRIPE_SECRET_KEY to enable payments.");
       } else if (result.url) {
         window.location.href = result.url;
       }
@@ -50,36 +60,58 @@ export default function Credits() {
 
   const txTypeIcon = (type: string) => {
     if (type === "debit") return <TrendingDown size={14} className="text-red-400" />;
-    if (type === "credit" || type === "refill" || type === "purchase") return <TrendingUp size={14} className="text-emerald-400" />;
-    return <Zap size={14} className="text-muted-foreground" />;
+    return <TrendingUp size={14} className="text-emerald-400" />;
   };
 
-  const txTypeColor = (type: string) => {
-    if (type === "debit") return "text-red-400";
-    return "text-emerald-400";
-  };
+  const txTypeColor = (type: string) => type === "debit" ? "text-red-400" : "text-emerald-400";
 
   return (
     <MainLayout>
       <div className="flex-1 overflow-y-auto p-6 md:p-8">
         <div className="max-w-4xl mx-auto space-y-8">
+          <div className="flex items-center gap-3">
+            <BackButton />
+          </div>
+
           <div>
             <h1 className="text-2xl font-bold">Credits</h1>
-            <p className="text-muted-foreground text-sm mt-1">Your credit wallet and transaction history.</p>
+            <p className="text-muted-foreground text-sm mt-1">Credits power every action on TempNest — buy more or earn them daily.</p>
           </div>
 
           {/* Wallet Card */}
           <Card className="p-6 bg-card border-border/60">
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-5">
               <Zap size={18} className="text-primary" />
               <span className="font-semibold">Credit Wallet</span>
             </div>
             {walletLoading ? <Skeleton className="h-16 w-full" /> : (
               <CreditBar current={wallet?.balance ?? 0} max={wallet?.maxBalance ?? 100} />
             )}
-            <div className="flex gap-4 mt-4 text-sm text-muted-foreground">
-              <span>Daily refill: <strong className="text-foreground">{wallet?.dailyRefill ?? 0}</strong></span>
-              <span>Last refill: <strong className="text-foreground">{wallet?.lastRefillAt ? new Date(wallet.lastRefillAt).toLocaleDateString() : "Never"}</strong></span>
+            <div className="flex gap-6 mt-5 pt-4 border-t border-border/40">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Daily Refill</p>
+                <p className="font-mono font-semibold">{wallet?.dailyRefill ?? 0} <span className="text-xs text-muted-foreground font-normal">credits/day</span></p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Last Refill</p>
+                <p className="text-sm">{wallet?.lastRefillAt ? new Date(wallet.lastRefillAt).toLocaleDateString() : "Today"}</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Credit Cost Reference */}
+          <Card className="p-5 bg-card border-border/60">
+            <div className="flex items-center gap-2 mb-4">
+              <Info size={16} className="text-primary" />
+              <h2 className="font-semibold text-sm">What do credits cost?</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {CREDIT_COSTS.map(c => (
+                <div key={c.action} className="bg-muted/30 rounded-lg p-3 text-center">
+                  <p className="font-mono text-sm font-bold text-primary">{c.cost}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{c.action}</p>
+                </div>
+              ))}
             </div>
           </Card>
 
@@ -101,7 +133,8 @@ export default function Credits() {
                   )}
                   <div className="text-sm text-muted-foreground mb-1">{pack.name}</div>
                   <div className="font-mono text-2xl font-bold mb-0.5">{pack.credits.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground mb-4">credits</div>
+                  <div className="text-xs text-muted-foreground mb-1">credits</div>
+                  <div className="text-xs text-muted-foreground/60 mb-4">{pack.perCredit}/credit</div>
                   <div className="text-xl font-semibold mb-3">{pack.price}</div>
                   <Button
                     size="sm"
@@ -126,21 +159,29 @@ export default function Credits() {
               </div>
             ) : !transactions?.length ? (
               <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
+                <Zap size={32} className="mx-auto mb-3 opacity-20" />
                 <p>No transactions yet.</p>
+                <p className="text-xs mt-1">Your credits will appear here as you use TempNest.</p>
               </div>
             ) : (
               <div className="space-y-1">
+                <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/40 mb-1">
+                  <div className="col-span-1"></div>
+                  <div className="col-span-6">Description</div>
+                  <div className="col-span-3 text-right">Amount</div>
+                  <div className="col-span-2 text-right">Balance</div>
+                </div>
                 {transactions.map(tx => (
-                  <div key={tx.id} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-card/50 border border-border/30">
-                    {txTypeIcon(tx.type)}
-                    <div className="flex-1 min-w-0">
+                  <div key={tx.id} className="grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-lg bg-card/50 border border-border/30 hover:bg-card/80 transition-colors">
+                    <div className="col-span-1">{txTypeIcon(tx.type)}</div>
+                    <div className="col-span-6 min-w-0">
                       <p className="text-sm truncate">{tx.description}</p>
                       <p className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleString()}</p>
                     </div>
-                    <div className={`font-mono text-sm font-semibold ${txTypeColor(tx.type)}`}>
-                      {tx.type === "debit" ? "-" : "+"}{tx.amount}
+                    <div className={`col-span-3 font-mono text-sm font-semibold text-right ${txTypeColor(tx.type)}`}>
+                      {tx.type === "debit" ? "−" : "+"}{tx.amount}
                     </div>
-                    <div className="font-mono text-xs text-muted-foreground w-16 text-right">
+                    <div className="col-span-2 font-mono text-xs text-muted-foreground text-right">
                       {tx.balanceAfter}
                     </div>
                   </div>

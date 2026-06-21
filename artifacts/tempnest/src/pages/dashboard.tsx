@@ -1,23 +1,24 @@
-import { useGetDashboardSummary, useListInboxes } from "@workspace/api-client-react";
+import { useGetDashboardSummary } from "@workspace/api-client-react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { Mail, Inbox, Key, Zap, ArrowRight } from "lucide-react";
+import { Mail, Inbox, Key, Zap, ArrowRight, TrendingUp } from "lucide-react";
 
 function CreditBar({ current, max }: { current: number; max: number }) {
-  const pct = max > 0 ? (current / max) * 100 : 0;
+  const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
   const color = pct > 50 ? "bg-emerald-500" : pct > 20 ? "bg-amber-500" : "bg-red-500";
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">Credits</span>
-        <span className="font-mono font-semibold">{current.toLocaleString()} / {max.toLocaleString()}</span>
+        <span className="text-muted-foreground font-medium">Credits</span>
+        <span className="font-mono font-semibold">{current.toLocaleString()} <span className="text-muted-foreground font-normal">/ {max.toLocaleString()}</span></span>
       </div>
-      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
       </div>
+      <p className="text-xs text-muted-foreground">{pct.toFixed(0)}% remaining</p>
     </div>
   );
 }
@@ -31,40 +32,121 @@ export default function Dashboard() {
         <div className="max-w-5xl mx-auto space-y-8">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground text-sm mt-1">Your activity at a glance.</p>
+            <p className="text-muted-foreground text-sm mt-1">Your personal activity overview — inboxes, emails, and credits at a glance.</p>
           </div>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Credits Left", value: isLoading ? null : summary?.credits, icon: Zap, sub: `/ ${summary?.maxCredits ?? "—"}` },
-              { label: "Active Inboxes", value: isLoading ? null : summary?.inboxCount, icon: Inbox, sub: `/ ${summary?.maxInboxes ?? "—"} max` },
-              { label: "Emails Today", value: isLoading ? null : summary?.emailsToday, icon: Mail, sub: "received" },
-              { label: "OTPs Extracted", value: isLoading ? null : summary?.otpsExtracted, icon: Key, sub: "today" },
+              {
+                label: "Credits Left",
+                value: isLoading ? null : summary?.credits,
+                sub: `/ ${summary?.maxCredits ?? "—"} max`,
+                icon: Zap,
+                desc: "Used to create inboxes & refresh emails",
+                color: "text-amber-400",
+              },
+              {
+                label: "Active Inboxes",
+                value: isLoading ? null : summary?.inboxCount,
+                sub: `/ ${summary?.maxInboxes ?? "—"} limit`,
+                icon: Inbox,
+                desc: "Temp email addresses currently active",
+                color: "text-violet-400",
+              },
+              {
+                label: "Emails Today",
+                value: isLoading ? null : summary?.emailsToday,
+                sub: "received",
+                icon: Mail,
+                desc: "Emails received across all your inboxes",
+                color: "text-cyan-400",
+              },
+              {
+                label: "OTPs Extracted",
+                value: isLoading ? null : summary?.otpsExtracted,
+                sub: "today",
+                icon: Key,
+                desc: "Verification codes auto-detected",
+                color: "text-emerald-400",
+              },
             ].map((stat) => (
-              <Card key={stat.label} className="p-4 bg-card border-border/60">
+              <Card key={stat.label} className="p-4 bg-card border-border/60 group hover:border-primary/30 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-                  <stat.icon size={16} className="text-primary opacity-70 mt-0.5" />
+                  <stat.icon size={16} className={`${stat.color} opacity-70 mt-0.5`} />
                 </div>
                 {isLoading ? (
-                  <Skeleton className="h-8 w-20" />
+                  <Skeleton className="h-8 w-20 mb-1" />
                 ) : (
-                  <div className="flex items-end gap-1">
+                  <div className="flex items-end gap-1 mb-1">
                     <span className="text-3xl font-bold font-mono">{stat.value ?? 0}</span>
                     <span className="text-xs text-muted-foreground mb-1">{stat.sub}</span>
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground/60 leading-tight hidden group-hover:block">{stat.desc}</p>
               </Card>
             ))}
           </div>
 
           {/* Credit Bar */}
           <Card className="p-5 bg-card border-border/60">
-            {isLoading ? <Skeleton className="h-8 w-full" /> : (
+            {isLoading ? <Skeleton className="h-10 w-full" /> : (
               <CreditBar current={summary?.credits ?? 0} max={summary?.maxCredits ?? 100} />
             )}
           </Card>
+
+          {/* Quick Actions */}
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Link href="/inboxes">
+              <Card className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                      <Inbox size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">My Inboxes</p>
+                      <p className="text-xs text-muted-foreground">Create or view inboxes</p>
+                    </div>
+                  </div>
+                  <ArrowRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+              </Card>
+            </Link>
+            <Link href="/credits">
+              <Card className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                      <Zap size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Buy Credits</p>
+                      <p className="text-xs text-muted-foreground">Top up your balance</p>
+                    </div>
+                  </div>
+                  <ArrowRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+              </Card>
+            </Link>
+            <Link href="/analytics">
+              <Card className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                      <TrendingUp size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Analytics</p>
+                      <p className="text-xs text-muted-foreground">View usage charts</p>
+                    </div>
+                  </div>
+                  <ArrowRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+              </Card>
+            </Link>
+          </div>
 
           {/* Recent Emails */}
           <div>
@@ -97,7 +179,7 @@ export default function Dashboard() {
                 {summary.recentEmails.map((email) => (
                   <Link key={email.id} href={`/emails/${email.id}`}>
                     <div className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors hover:border-primary/30 hover:bg-card/80 ${email.isRead ? "border-border/40 bg-card/30" : "border-border/60 bg-card"}`}>
-                      <div className="mt-0.5">
+                      <div className="mt-1">
                         {!email.isRead && <div className="w-2 h-2 rounded-full bg-primary" />}
                         {email.isRead && <div className="w-2 h-2 rounded-full bg-transparent" />}
                       </div>

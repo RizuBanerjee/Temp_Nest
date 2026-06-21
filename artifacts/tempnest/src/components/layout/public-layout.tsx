@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Show, useClerk } from "@clerk/react";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function PublicLayout({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
@@ -9,16 +10,18 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground flex flex-col font-sans">
-      <header className="border-b border-border/40 backdrop-blur-md sticky top-0 z-50">
+      <header className="border-b border-border/40 backdrop-blur-md sticky top-0 z-50 bg-background/80">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Logo />
           
           <nav className="hidden md:flex items-center gap-6">
-            <Link href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</Link>
+            <a href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</a>
+            <a href="#try-it" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Try it</a>
             <Link href="/pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Show when="signed-in">
               <Button variant="ghost" onClick={() => setLocation("/dashboard")}>
                 Dashboard
@@ -47,8 +50,8 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between">
           <p>© {new Date().getFullYear()} TempNest. All rights reserved.</p>
           <div className="flex items-center gap-4 mt-4 md:mt-0">
-            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+            <span className="hover:text-foreground transition-colors cursor-pointer">Privacy Policy</span>
+            <span className="hover:text-foreground transition-colors cursor-pointer">Terms of Service</span>
           </div>
         </div>
       </footer>
