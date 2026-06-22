@@ -152,18 +152,18 @@ export default function AdminUsers() {
       </div>
 
       <Dialog open={!!grantModal} onOpenChange={() => setGrantModal(null)}>
-        <DialogContent className="bg-card border-border/80 max-w-sm w-[calc(100vw-2rem)]">
-          <DialogHeader>
+        <DialogContent className="bg-card border-border/80 max-w-sm w-[calc(100vw-2rem)] p-5 gap-3">
+          <DialogHeader className="space-y-1">
             <DialogTitle className="text-base leading-snug pr-6">Grant Credits</DialogTitle>
             <p className="text-sm text-muted-foreground truncate">{grantModal?.email}</p>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Label>Amount</Label>
+          <div className="space-y-2">
+            <Label className="text-sm">Amount</Label>
             <Input type="number" placeholder="e.g. 100" value={grantAmount} onChange={e => setGrantAmount(e.target.value)} className="h-10" />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGrantModal(null)} size="sm">Cancel</Button>
-            <Button onClick={handleGrantCredits} disabled={updateUser.isPending} size="sm">Grant</Button>
+          <DialogFooter className="gap-2 sm:gap-2 pt-1">
+            <Button variant="outline" onClick={() => setGrantModal(null)} size="sm" className="h-9">Cancel</Button>
+            <Button onClick={handleGrantCredits} disabled={updateUser.isPending} size="sm" className="h-9">Grant</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
