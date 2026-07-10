@@ -19,7 +19,7 @@ function CreditBar({ current, max }: { current: number; max: number }) {
       <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-xs text-muted-foreground">{isUnlimited ? "Admin · Unlimited usage" : `${pct.toFixed(0)}% remaining`}</p>
+      <p className="text-xs text-muted-foreground">{isUnlimited ? "Unlimited credits" : `${pct.toFixed(0)}% remaining`}</p>
     </div>
   );
 }
@@ -93,7 +93,7 @@ export default function Dashboard() {
           {/* Credit Bar */}
           <Card className="p-5 bg-card border-border/60">
             {isLoading ? <Skeleton className="h-10 w-full" /> : (
-              <CreditBar current={summary?.maxCredits === -1 ? 999999 : (summary?.credits ?? 0)} max={summary?.maxCredits ?? 100} />
+              <CreditBar current={summary?.maxCredits === -1 ? summary?.credits ?? 0 : (summary?.credits ?? 0)} max={summary?.maxCredits ?? 100} />
             )}
           </Card>
 

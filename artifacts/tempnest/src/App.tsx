@@ -96,7 +96,6 @@ const clerkAppearance = {
     socialButtonsBlockButton: "border-border bg-card hover:bg-muted text-foreground",
     identityPreviewText: "text-foreground",
     identityPreviewEditButtonIcon: "text-muted-foreground",
-    footer: "hidden",
     badge: "hidden",
     tagline: "hidden",
     "cl-internal-1d5bpac": "hidden",

@@ -51,19 +51,18 @@ router.post("/", requireAuth, async (req, res) => {
 
     const { customName, isPriority } = req.body;
 
-    const isAdmin = user.isAdmin;
     let creditCost = 2;
     if (customName) creditCost += 5;
     if (isPriority) creditCost += 10;
 
-    if (!isAdmin && user.credits < creditCost) {
-      res.status(400).json({ error: "Insufficient credits", required: creditCost, available: user.credits }); return;
+    if (user.credits < creditCost) {
+      res.status(402).json({ error: "Insufficient credits", code: "UPGRADE_REQUIRED", required: creditCost, available: user.credits }); return;
     }
 
     const [inboxCount] = await db.select({ count: count() }).from(inboxesTable)
       .where(and(eq(inboxesTable.userId, user.id), eq(inboxesTable.isActive, true)));
-    if (!isAdmin && Number(inboxCount?.count || 0) >= user.maxInboxes) {
-      res.status(400).json({ error: "Inbox limit reached. Upgrade your plan for more inboxes." }); return;
+    if (user.maxInboxes !== -1 && Number(inboxCount?.count || 0) >= user.maxInboxes) {
+      res.status(402).json({ error: "Inbox limit reached. Upgrade your plan for more inboxes.", code: "UPGRADE_REQUIRED" }); return;
     }
 
     let domain = "mail.tm";
@@ -86,19 +85,20 @@ router.post("/", requireAuth, async (req, res) => {
       req.log.warn({ err }, "mail.tm account creation failed, using local fallback");
     }
 
-    if (!isAdmin) {
+    // Atomic debit + inbox creation so users are never charged if the inbox is not persisted.
+    const [inbox] = await db.transaction(async (tx) => {
       const newCredits = user.credits - creditCost;
-      await db.update(usersTable).set({ credits: newCredits, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-      await db.insert(creditTransactionsTable).values({
+      await tx.update(usersTable).set({ credits: newCredits, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+      await tx.insert(creditTransactionsTable).values({
         userId: user.id, type: "debit", amount: creditCost,
         description: `Created inbox ${address}`, balanceAfter: newCredits,
       });
-    }
 
-    const [inbox] = await db.insert(inboxesTable).values({
-      id: accountId, userId: user.id, address, domain, password,
-      mailtmToken: token, isActive: true, isPriority: isPriority || false,
-    }).returning();
+      return await tx.insert(inboxesTable).values({
+        id: accountId, userId: user.id, address, domain, password,
+        mailtmToken: token, isActive: true, isPriority: isPriority || false,
+      }).returning();
+    });
 
     res.status(201).json({
       id: inbox.id, address: inbox.address, domain: inbox.domain,
@@ -172,21 +172,18 @@ router.post("/:inboxId/refresh", requireAuth, async (req, res) => {
     const auth = getAuth(req);
     const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
 
-    const isAdmin = user.isAdmin;
-    if (!isAdmin && user.credits < 1) { res.status(400).json({ error: "Insufficient credits" }); return; }
+    if (user.credits < 1) { res.status(402).json({ error: "Insufficient credits", code: "UPGRADE_REQUIRED" }); return; }
 
     const [inbox] = await db.select().from(inboxesTable)
       .where(and(eq(inboxesTable.id, inboxId), eq(inboxesTable.userId, user.id)));
     if (!inbox) { res.status(404).json({ error: "Not found" }); return; }
 
-    if (!isAdmin) {
-      const newCredits = user.credits - 1;
-      await db.update(usersTable).set({ credits: newCredits, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-      await db.insert(creditTransactionsTable).values({
-        userId: user.id, type: "debit", amount: 1,
-        description: `Refreshed inbox ${inbox.address}`, balanceAfter: newCredits,
-      });
-    }
+    const newCredits = user.credits - 1;
+    await db.update(usersTable).set({ credits: newCredits, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    await db.insert(creditTransactionsTable).values({
+      userId: user.id, type: "debit", amount: 1,
+      description: `Refreshed inbox ${inbox.address}`, balanceAfter: newCredits,
+    });
 
     let token = inbox.mailtmToken;
     if (!token && !inbox.id.startsWith("local_")) {

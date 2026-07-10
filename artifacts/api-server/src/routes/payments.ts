@@ -1,11 +1,143 @@
 import { Router } from "express";
 import { requireAuth, getOrCreateUser } from "../lib/auth";
 import { getAuth } from "@clerk/express";
-import { db, usersTable, paymentsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, paymentsTable, creditTransactionsTable, subscriptionsTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 import { CREDIT_PACKS, PLANS } from "./plans";
 
 const router = Router();
+
+function getAppUrl(): string {
+  // Always use the canonical server URL for Stripe redirects. Never rely on request headers,
+  // which can be attacker-controlled and lead to open-redirects.
+  return process.env.APP_URL || "http://localhost";
+}
+
+async function getStripe() {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) return null;
+  const Stripe = (await import("stripe")).default;
+  return new Stripe(stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
+}
+
+async function applyCreditPurchase(userId: number, credits: number, sessionId: string, amount: number, currency: string) {
+  await db.transaction(async (tx) => {
+    const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) return;
+
+    // Only the worker that successfully flips the pending payment to completed may run side effects.
+    const existingPayment = await tx.select().from(paymentsTable)
+      .where(eq(paymentsTable.stripeSessionId, sessionId));
+    let claimed = false;
+    if (existingPayment.length > 0) {
+      const [updated] = await tx.update(paymentsTable)
+        .set({ status: "completed" })
+        .where(and(eq(paymentsTable.id, existingPayment[0].id), eq(paymentsTable.status, "pending")))
+        .returning();
+      claimed = !!updated;
+    } else {
+      await tx.insert(paymentsTable).values({
+        userId,
+        stripeSessionId: sessionId,
+        amount,
+        currency,
+        type: "credits",
+        creditPackId: null,
+        creditsGranted: credits,
+        status: "completed",
+      });
+      claimed = true;
+    }
+    if (!claimed) return; // another worker already fulfilled this session
+
+    // Credit packs should be usable: raise the cap so purchased credits are not silently clipped.
+    const targetMaxCredits = Math.max(user.maxCredits, user.credits + credits);
+    const newCredits = user.credits + credits;
+
+    await tx.update(usersTable).set({
+      credits: newCredits,
+      maxCredits: targetMaxCredits,
+      updatedAt: new Date(),
+    }).where(eq(usersTable.id, userId));
+
+    await tx.insert(creditTransactionsTable).values({
+      userId,
+      type: "credit",
+      amount: credits,
+      description: `Credit purchase — ${credits} credits`,
+      balanceAfter: newCredits,
+    });
+  });
+}
+
+async function applySubscription(userId: number, planId: string, sessionId: string, amount: number, currency: string, stripeSubscriptionId?: string | null, currentPeriodEnd?: Date | null) {
+  const plan = PLANS.find(p => p.id === planId);
+  if (!plan) return;
+
+  await db.transaction(async (tx) => {
+    // Only the worker that successfully flips the pending payment to completed may run side effects.
+    const existingPayment = await tx.select().from(paymentsTable)
+      .where(eq(paymentsTable.stripeSessionId, sessionId));
+    let claimed = false;
+    if (existingPayment.length > 0) {
+      const [updated] = await tx.update(paymentsTable)
+        .set({ status: "completed" })
+        .where(and(eq(paymentsTable.id, existingPayment[0].id), eq(paymentsTable.status, "pending")))
+        .returning();
+      claimed = !!updated;
+    } else {
+      await tx.insert(paymentsTable).values({
+        userId,
+        stripeSessionId: sessionId,
+        stripePaymentIntentId: null,
+        amount,
+        currency,
+        type: "subscription",
+        planId,
+        creditsGranted: null,
+        status: "completed",
+      });
+      claimed = true;
+    }
+    if (!claimed) return; // another worker already fulfilled this session
+
+    await tx.update(usersTable).set({
+      plan: planId as any,
+      credits: plan.credits,
+      maxCredits: plan.maxCredits,
+      maxInboxes: plan.maxInboxes,
+      dailyRefill: plan.dailyRefill,
+      updatedAt: new Date(),
+    }).where(eq(usersTable.id, userId));
+
+    await tx.insert(creditTransactionsTable).values({
+      userId,
+      type: "credit",
+      amount: plan.credits,
+      description: `${plan.name} plan subscription — ${plan.credits.toLocaleString()} credits`,
+      balanceAfter: plan.credits,
+    });
+
+    const existingSub = await tx.select().from(subscriptionsTable).where(eq(subscriptionsTable.userId, userId));
+    if (existingSub.length > 0) {
+      await tx.update(subscriptionsTable).set({
+        planId,
+        status: "active",
+        stripeSubscriptionId: stripeSubscriptionId || existingSub[0].stripeSubscriptionId,
+        currentPeriodEnd: currentPeriodEnd || existingSub[0].currentPeriodEnd,
+        updatedAt: new Date(),
+      }).where(eq(subscriptionsTable.userId, userId));
+    } else {
+      await tx.insert(subscriptionsTable).values({
+        userId,
+        planId,
+        status: "active",
+        stripeSubscriptionId: stripeSubscriptionId || null,
+        currentPeriodEnd: currentPeriodEnd || null,
+      });
+    }
+  });
+}
 
 // Build Stripe checkout URL (or fallback if no Stripe key)
 router.post("/checkout", requireAuth, async (req, res) => {
@@ -14,17 +146,15 @@ router.post("/checkout", requireAuth, async (req, res) => {
     const auth = getAuth(req);
     const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
     const { type, planId, creditPackId } = req.body;
+    const stripe = await getStripe();
 
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecretKey) {
+    if (!stripe) {
       res.json({ url: "/credits?error=stripe_not_configured" }); return;
     }
 
-    const Stripe = (await import("stripe")).default;
-    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
-
-    const successUrl = `${process.env.APP_URL || "http://localhost"}/credits?success=1`;
-    const cancelUrl = `${process.env.APP_URL || "http://localhost"}/credits`;
+    const origin = getAppUrl();
+    const successUrl = `${origin}/credits?success=1&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${origin}/credits?error=payment_cancelled`;
 
     if (type === "credits" && creditPackId) {
       const pack = CREDIT_PACKS.find(p => p.id === creditPackId);
@@ -77,12 +207,102 @@ router.post("/checkout", requireAuth, async (req, res) => {
         customer_email: user.email,
       });
 
+      await db.insert(paymentsTable).values({
+        userId: user.id,
+        stripeSessionId: session.id,
+        amount: plan.price / 100,
+        currency: plan.currency,
+        type: "subscription",
+        planId,
+        status: "pending",
+      });
+
       res.json({ url: session.url }); return;
     }
 
     res.status(400).json({ error: "Invalid checkout request" });
   } catch (err) {
     req.log.error({ err }, "Failed to create checkout session");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/verify-session", requireAuth, async (req, res) => {
+  try {
+    const stripe = await getStripe();
+    if (!stripe) { res.status(400).json({ error: "Stripe not configured" }); return; }
+
+    const clerkId = (req as any).clerkId;
+    const auth = getAuth(req);
+    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
+
+    const sessionId = req.query.session_id as string;
+    if (!sessionId) { res.status(400).json({ error: "Missing session_id" }); return; }
+
+    const [payment] = await db.select().from(paymentsTable)
+      .where(eq(paymentsTable.stripeSessionId, sessionId));
+
+    if (!payment) { res.status(404).json({ error: "Payment session not found" }); return; }
+    if (payment.userId !== user.id) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== "paid") {
+      res.status(400).json({ error: "Payment not completed" }); return;
+    }
+
+    const amount = session.amount_total ? session.amount_total / 100 : 0;
+    const currency = session.currency || "usd";
+
+    if (payment.type === "credits" && payment.creditsGranted) {
+      await applyCreditPurchase(user.id, payment.creditsGranted, sessionId, amount, currency);
+      res.json({ success: true, type: "credits", credits: payment.creditsGranted });
+    } else if (payment.type === "subscription" && payment.planId) {
+      const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+      let currentPeriodEnd: Date | null = null;
+      let stripeSubId: string | null = subscriptionId;
+      if (subscriptionId) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          const periodEnd = (sub as any).current_period_end;
+          currentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : null;
+          stripeSubId = (sub as any).id;
+        } catch (_) {}
+      }
+      await applySubscription(user.id, payment.planId, sessionId, amount, currency, stripeSubId, currentPeriodEnd);
+      res.json({ success: true, type: "subscription", planId: payment.planId });
+    } else {
+      res.status(400).json({ error: "Unknown payment type" });
+    }
+  } catch (err) {
+    req.log.error({ err }, "Failed to verify session");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/history", requireAuth, async (req, res) => {
+  try {
+    const clerkId = (req as any).clerkId;
+    const auth = getAuth(req);
+    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
+
+    const payments = await db.select().from(paymentsTable)
+      .where(eq(paymentsTable.userId, user.id))
+      .orderBy(desc(paymentsTable.createdAt))
+      .limit(100);
+
+    res.json(payments.map(p => ({
+      id: p.id,
+      amount: p.amount,
+      currency: p.currency,
+      type: p.type,
+      planId: p.planId,
+      creditPackId: p.creditPackId,
+      creditsGranted: p.creditsGranted,
+      status: p.status,
+      createdAt: p.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to list payment history");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -100,48 +320,55 @@ router.post("/webhook", async (req, res) => {
     const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
 
     const sig = req.headers["stripe-signature"] as string;
+    const payload = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : req.body;
     let event;
     try {
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+      event = stripe.webhooks.constructEvent(payload, sig, webhookSecret);
     } catch (_) {
       res.status(400).json({ error: "Webhook signature failed" }); return;
     }
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as any;
+      if (session.payment_status !== "paid") { res.json({ received: true }); return; }
+
       const { userId, type, credits, planId } = session.metadata || {};
       const uid = Number(userId);
+      if (!uid || isNaN(uid)) { res.json({ received: true }); return; }
 
-      if (type === "credits" && credits) {
-        const [user] = await db.select().from(usersTable).where(eq(usersTable.id, uid));
-        if (user) {
-          const newCredits = user.credits + Number(credits);
-          await db.update(usersTable).set({ credits: newCredits, updatedAt: new Date() }).where(eq(usersTable.id, uid));
-        }
-        await db.update(paymentsTable).set({ status: "completed" })
-          .where(eq(paymentsTable.stripeSessionId, session.id));
-      }
+      const amount = session.amount_total ? session.amount_total / 100 : 0;
+      const currency = session.currency || "usd";
 
-      if (type === "subscription" && planId) {
-        const planConfig: Record<string, { credits: number; maxInboxes: number; maxCredits: number }> = {
-          pro: { credits: 1000, maxInboxes: 5, maxCredits: 1000 },
-          business: { credits: 5000, maxInboxes: -1, maxCredits: 5000 },
-        };
-        const planInfo = planConfig[planId];
-        if (planInfo) {
-          await db.update(usersTable).set({
-            plan: planId as any,
-            credits: planInfo.credits,
-            maxCredits: planInfo.maxCredits,
-            maxInboxes: planInfo.maxInboxes,
-            updatedAt: new Date(),
-          }).where(eq(usersTable.id, uid));
+      // Prefer the pending payment record we created at checkout for type/user safety.
+      const [payment] = await db.select().from(paymentsTable)
+        .where(eq(paymentsTable.stripeSessionId, session.id));
+
+      const finalType = payment?.type || type;
+      const finalCredits = payment?.creditsGranted || (credits ? Number(credits) : null);
+      const finalPlanId = payment?.planId || planId;
+      const finalUserId = payment?.userId || uid;
+
+      if (finalType === "credits" && finalCredits) {
+        await applyCreditPurchase(finalUserId, finalCredits, session.id, amount, currency);
+      } else if (finalType === "subscription" && finalPlanId) {
+        const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+        let currentPeriodEnd: Date | null = null;
+        let stripeSubId: string | null = subscriptionId;
+        if (subscriptionId) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(subscriptionId);
+            const periodEnd = (sub as any).current_period_end;
+            currentPeriodEnd = periodEnd ? new Date(periodEnd * 1000) : null;
+            stripeSubId = (sub as any).id;
+          } catch (_) {}
         }
+        await applySubscription(finalUserId, finalPlanId, session.id, amount, currency, stripeSubId, currentPeriodEnd);
       }
     }
 
     res.json({ received: true });
   } catch (err) {
+    req.log.error({ err }, "Webhook error");
     res.status(500).json({ error: "Webhook error" });
   }
 });

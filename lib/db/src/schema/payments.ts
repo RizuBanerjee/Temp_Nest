@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, serial, pgEnum, real } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, serial, pgEnum, real, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -19,7 +19,9 @@ export const paymentsTable = pgTable("payments", {
   creditsGranted: integer("credits_granted"),
   status: paymentStatusEnum("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  stripeSessionIdIdx: uniqueIndex("payments_stripe_session_id_idx").on(table.stripeSessionId),
+}));
 
 export const subscriptionsTable = pgTable("subscriptions", {
   id: serial("id").primaryKey(),

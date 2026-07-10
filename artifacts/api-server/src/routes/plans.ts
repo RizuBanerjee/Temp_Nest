@@ -2,20 +2,34 @@ import { Router } from "express";
 
 const router = Router();
 
-const PLANS = [
+export interface PlanConfig {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  billingPeriod: string;
+  credits: number;
+  maxInboxes: number;
+  maxCredits: number;
+  dailyRefill: number;
+  features: string[];
+  stripePriceId: string | null;
+}
+
+const PLANS: PlanConfig[] = [
   {
     id: "free",
     name: "Free",
     price: 0,
     currency: "usd",
     billingPeriod: "forever",
-    credits: 100,
+    credits: 50,
     maxInboxes: 1,
-    maxCredits: 100,
+    maxCredits: 50,
     dailyRefill: 20,
     features: [
       "1 active inbox",
-      "100 credit cap",
+      "50 credit cap",
       "20 daily credit refill",
       "7-day email history",
       "OTP detection",
@@ -29,13 +43,13 @@ const PLANS = [
     price: 999,
     currency: "usd",
     billingPeriod: "month",
-    credits: 1000,
-    maxInboxes: 5,
-    maxCredits: 1000,
+    credits: 5000,
+    maxInboxes: 10,
+    maxCredits: 5000,
     dailyRefill: 0,
     features: [
-      "5 active inboxes",
-      "1,000 credits/month",
+      "10 active inboxes",
+      "5,000 credits/month",
       "Unlimited email history",
       "Priority inbox processing",
       "Custom inbox names",
@@ -51,13 +65,13 @@ const PLANS = [
     price: 2999,
     currency: "usd",
     billingPeriod: "month",
-    credits: 5000,
+    credits: 50000,
     maxInboxes: -1, // unlimited
-    maxCredits: 5000,
+    maxCredits: 50000,
     dailyRefill: 0,
     features: [
       "Unlimited inboxes",
-      "5,000 credits/month",
+      "50,000 credits/month",
       "Unlimited email history",
       "API access",
       "Advanced analytics",

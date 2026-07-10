@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Plus, Inbox, Mail, Copy, Check, Zap, Shield, Clock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -86,12 +86,14 @@ export default function Inboxes() {
   const { data: inboxes, isLoading } = useListInboxes();
   const createInbox = useCreateInbox();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [isPriority, setIsPriority] = useState(false);
 
-  const isAdmin = user?.isAdmin;
-  const creditCost = isAdmin ? 0 : (2 + (customName.trim() ? 5 : 0) + (isPriority ? 10 : 0));
+  const creditCost = 2 + (customName.trim() ? 5 : 0) + (isPriority ? 10 : 0);
+  const atInboxLimit = user?.maxInboxes !== -1 && (inboxes?.length ?? 0) >= user?.maxInboxes!;
+  const insufficientCredits = (user?.credits ?? 0) < creditCost;
 
   async function handleCreate() {
     try {
@@ -102,7 +104,15 @@ export default function Inboxes() {
       setIsPriority(false);
       toast.success("Inbox created! Check your new address.");
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to create inbox");
+      const errorCode = err?.response?.data?.code;
+      const errorMessage = err?.response?.data?.error || "Failed to create inbox";
+      if (errorCode === "UPGRADE_REQUIRED" || errorMessage.toLowerCase().includes("limit") || errorMessage.toLowerCase().includes("credits")) {
+        toast.error(`${errorMessage} — upgrade your plan to unlock more.`, {
+          action: { label: "Upgrade", onClick: () => setLocation("/pricing") },
+        });
+      } else {
+        toast.error(errorMessage);
+      }
     }
   }
 
@@ -118,7 +128,7 @@ export default function Inboxes() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Inboxes</h1>
               <p className="text-muted-foreground text-sm mt-1">
-                {isLoading ? "Loading…" : `${inboxes?.length ?? 0} active ${inboxes?.length === 1 ? "inbox" : "inboxes"}${user?.isAdmin ? " · Unlimited" : ""}`}
+                {isLoading ? "Loading…" : `${inboxes?.length ?? 0} active ${inboxes?.length === 1 ? "inbox" : "inboxes"}${user?.maxInboxes === -1 ? " · Unlimited" : ` / ${user?.maxInboxes ?? 1} limit`}`}
               </p>
             </div>
             <Button onClick={() => setOpen(true)} className="gap-2">
@@ -131,7 +141,7 @@ export default function Inboxes() {
             <Shield size={18} className="text-primary mt-0.5 shrink-0" />
             <div>
               <p className="font-medium text-foreground mb-0.5">How inboxes work</p>
-              <p className="text-muted-foreground text-xs">Each inbox is a real disposable email address (e.g. <code className="font-mono bg-muted px-1 rounded">abc123@mail.tm</code>). Share it anywhere you'd normally give your real email. Emails arrive here in real-time.{user?.isAdmin ? " As an admin, you can create unlimited inboxes for free." : " Costs 2 credits to create."}</p>
+              <p className="text-muted-foreground text-xs">Each inbox is a real disposable email address (e.g. <code className="font-mono bg-muted px-1 rounded">abc123@mail.tm</code>). Share it anywhere you'd normally give your real email. Emails arrive here in real-time. Costs 2 credits to create.</p>
             </div>
           </div>
 
@@ -161,7 +171,7 @@ export default function Inboxes() {
           <DialogHeader>
             <DialogTitle>Create New Inbox</DialogTitle>
             <DialogDescription>
-              A new disposable email address will be created for you.{isAdmin ? " As admin, this is free." : ` Costs <strong>${creditCost} credits</strong>.`}
+              A new disposable email address will be created for you. Costs <strong>{creditCost} credits</strong>.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -192,13 +202,13 @@ export default function Inboxes() {
             </div>
             <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg text-sm border border-primary/20">
               <Zap size={14} className="text-primary" />
-              <span>Total cost: <strong className="text-foreground">{isAdmin ? "Free (admin)" : `${creditCost} credits`}</strong></span>
+              <span>Total cost: <strong className="text-foreground">{creditCost} credits</strong></span>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={createInbox.isPending}>
-              {createInbox.isPending ? "Creating…" : `Create Inbox (${creditCost} credits)`}
+            <Button onClick={handleCreate} disabled={createInbox.isPending || atInboxLimit || insufficientCredits}>
+              {createInbox.isPending ? "Creating…" : atInboxLimit ? "Inbox Limit Reached" : insufficientCredits ? "Insufficient Credits" : `Create Inbox (${creditCost} credits)`}
             </Button>
           </DialogFooter>
         </DialogContent>

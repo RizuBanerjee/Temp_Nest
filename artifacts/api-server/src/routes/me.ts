@@ -29,8 +29,17 @@ router.get("/", requireAuth, async (req, res) => {
 
     // If the DB email is a placeholder and we now have a real one, update it
     if (email && user.email.includes("@noemail.tempnest.internal") && email !== user.email) {
-      await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-      user.email = email;
+      try {
+        await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+        user.email = email;
+      } catch (err: any) {
+        // If another account already has this email, keep the placeholder to avoid a unique constraint crash
+        if (err?.message?.includes("unique constraint") || err?.message?.includes("duplicate key")) {
+          req.log.warn({ email, userId: user.id }, "Email already belongs to another account");
+        } else {
+          throw err;
+        }
+      }
     }
 
     // Daily credit refill logic:

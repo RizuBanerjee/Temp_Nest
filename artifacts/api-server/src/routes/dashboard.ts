@@ -12,7 +12,6 @@ router.get("/summary", requireAuth, async (req, res) => {
     const auth = getAuth(req);
     const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", (auth?.sessionClaims?.fullName as string) || "");
 
-    const isAdmin = user.isAdmin;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -40,12 +39,12 @@ router.get("/summary", requireAuth, async (req, res) => {
 
     res.json({
       credits: user.credits,
-      maxCredits: isAdmin ? -1 : user.maxCredits,
+      maxCredits: user.maxCredits,
       inboxCount: Number(inboxCount?.count || 0),
-      maxInboxes: isAdmin ? -1 : user.maxInboxes,
+      maxInboxes: user.maxInboxes,
       emailsToday: Number(emailsToday?.count || 0),
       otpsExtracted: Number(otpsToday?.count || 0),
-      creditsUsedToday: isAdmin ? 0 : creditsUsedToday,
+      creditsUsedToday: creditsUsedToday,
       recentEmails: recentEmails.map(e => ({
         id: e.id, inboxId: e.inboxId, from: e.fromAddress, subject: e.subject,
         preview: e.preview, isRead: e.isRead, hasOtp: e.hasOtp, otpCode: e.otpCode,

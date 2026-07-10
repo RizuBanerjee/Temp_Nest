@@ -467,7 +467,7 @@ export default function Home() {
               {
                 icon: Lock,
                 title: "Credit-Based Fair Use",
-                desc: "Transparent pricing with credits. Free plan gives 20 credits/day. No hidden fees, ever.",
+                desc: "Transparent pricing with credits. Free plan gives 50 credits and 20 daily refill. No hidden fees, ever.",
                 color: "text-violet-400",
                 bg: "bg-violet-400/10",
               },
@@ -481,7 +481,7 @@ export default function Home() {
               {
                 icon: Mail,
                 title: "Multi-Inbox Management",
-                desc: "Pro users can manage 5 inboxes simultaneously. Business gets unlimited. Full email history kept.",
+                desc: "Pro users can manage 10 inboxes simultaneously. Business gets unlimited. Full email history kept.",
                 color: "text-rose-400",
                 bg: "bg-rose-400/10",
               },
