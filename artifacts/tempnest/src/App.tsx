@@ -62,6 +62,34 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+// Hides Clerk's "Development mode" badge when running with development keys.
+function useHideClerkDevBadge() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const isDevBadge = (el: Element) => {
+      const text = el.textContent?.toLowerCase() ?? "";
+      return text.includes("development") || text.includes("development mode") || text.includes("dev mode");
+    };
+
+    const hide = () => {
+      container.querySelectorAll('[class*="cl-internal-"]').forEach((el) => {
+        if (isDevBadge(el)) (el as HTMLElement).style.display = "none";
+      });
+    };
+
+    hide();
+    const observer = new MutationObserver(hide);
+    observer.observe(container, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
+  return containerRef;
+}
+
 const clerkAppearance = {
   theme: shadcn,
   cssLayerName: "clerk",
@@ -108,9 +136,10 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
+  const ref = useHideClerkDevBadge();
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
+      <div ref={ref} className="w-full max-w-md space-y-6">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2.5 mb-3">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -130,9 +159,10 @@ function SignInPage() {
 }
 
 function SignUpPage() {
+  const ref = useHideClerkDevBadge();
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
+      <div ref={ref} className="w-full max-w-md space-y-6">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2.5 mb-3">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">

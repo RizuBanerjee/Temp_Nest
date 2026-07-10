@@ -130,13 +130,26 @@
 
 /* Hide Clerk's "Development mode" badge/notice across all versions */
 [class*="cl-internal-"][class*="badge"],
+[class*="cl-internal-"][class*="notice"],
+[class*="cl-internal-"][class*="devMode"],
 [class*="cl-devMode"],
 [class*="cl-developmentMode"],
 [class*="cl-badge"],
 [class*="cl-tagline"],
 .cl-internal-1d5bpac,
 .cl-internal-b3fm6y,
-.cl-internal-1b3fm6y {
+.cl-internal-1b3fm6y,
+.cl-internal-1u2ehyu,
+.cl-internal-1pifbg9,
+.cl-internal-1w4udni,
+.cl-internal-10q6yax,
+.cl-internal-1yyj7cv,
+.cl-internal-2nziq5,
+.cl-internal-btdq6v,
+.cl-internal-1r6v7u1,
+.cl-internal-1f5j0dr,
+.cl-internal-1p47cuw,
+.cl-internal-1fsg1zy {
   display: none !important;
 }
 /* Global catch-all for the floating "Development mode" bar */
