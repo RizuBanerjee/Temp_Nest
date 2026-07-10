@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { User, Shield, Bell, Palette } from "lucide-react";
+import { User, Shield, Bell, Palette, Crown } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 
 export default function Settings() {
@@ -28,6 +28,7 @@ export default function Settings() {
     notifyWeeklySummary: false,
   });
   const [savingNotifications, setSavingNotifications] = useState(false);
+  const [claimingAdmin, setClaimingAdmin] = useState(false);
 
   useEffect(() => {
     if (user?.name && !name) {
@@ -56,6 +57,21 @@ export default function Settings() {
       toast.success("Profile updated");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to update");
+    }
+  }
+
+  async function handleClaimAdmin() {
+    setClaimingAdmin(true);
+    try {
+      const res = await fetch("/api/admin/claim", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Not authorized");
+      toast.success("Admin privileges granted");
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to claim admin");
+    } finally {
+      setClaimingAdmin(false);
     }
   }
 
@@ -215,6 +231,26 @@ export default function Settings() {
                 <div className="pt-3 border-t border-border/30">
                   <p className="text-xs text-muted-foreground">To delete your account or manage authentication methods, visit your <span className="text-primary cursor-pointer">account settings</span>.</p>
                 </div>
+                {!user?.isAdmin && (
+                  <div className="pt-4 border-t border-border/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Crown size={16} className="text-amber-400" />
+                      <span className="text-sm font-medium">Admin Access</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      If you are the designated admin, you can claim admin privileges for this account.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleClaimAdmin}
+                      disabled={claimingAdmin}
+                      className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                    >
+                      {claimingAdmin ? "Claiming..." : "Claim Admin Privileges"}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </Card>

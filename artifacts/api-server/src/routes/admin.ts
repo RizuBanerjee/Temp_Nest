@@ -27,13 +27,13 @@ router.post("/claim", requireAuth, async (req, res) => {
       req.log.warn({ err: e }, "Could not fetch Clerk user email");
     }
 
-    const adminEmail = process.env.ADMIN_EMAIL || "rizubanerjee456@gmail.com";
-    const [existingAdmin] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.isAdmin, true));
-    const adminCount = Number(existingAdmin?.count || 0);
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) {
+      res.status(500).json({ error: "Admin email not configured" }); return;
+    }
 
-    const canClaim = adminCount === 0 || (adminEmail && adminEmail === clerkEmail);
-    if (!canClaim) {
-      res.status(403).json({ error: "Admin already exists or you are not authorized" }); return;
+    if (adminEmail !== clerkEmail) {
+      res.status(403).json({ error: "You are not authorized to claim admin" }); return;
     }
 
     // Also update the user's email in DB if we got a real one from Clerk

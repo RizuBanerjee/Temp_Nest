@@ -32,12 +32,32 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const getOrCreateUser = async (clerkId: string, email: string, name: string) => {
+  // 1. If we have a real email, prefer the account that owns that email.
+  //    This merges duplicate accounts created by different Clerk sign-in methods
+  //    (e.g. Google vs email/password) so the same email always maps to one DB row.
+  if (email && !email.includes("@noemail.tempnest.internal")) {
+    const [emailUser] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (emailUser) {
+      if (emailUser.clerkId !== clerkId) {
+        await db.update(usersTable)
+          .set({ clerkId, updatedAt: new Date() })
+          .where(eq(usersTable.id, emailUser.id));
+        emailUser.clerkId = clerkId;
+      }
+      return emailUser;
+    }
+  }
+
   const existing = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId)).limit(1);
   if (existing[0]) {
     const user = existing[0];
-    if (!user.email && email) {
-      await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-      user.email = email;
+    // Update a placeholder email to the real one if we now have it and it's not taken.
+    if (email && user.email.includes("@noemail.tempnest.internal") && email !== user.email) {
+      const [emailOwner] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
+      if (!emailOwner) {
+        await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+        user.email = email;
+      }
     }
     return user;
   }
