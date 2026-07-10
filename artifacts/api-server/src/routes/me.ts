@@ -27,18 +27,19 @@ router.get("/", requireAuth, async (req, res) => {
 
     const user = await getOrCreateUser(clerkId, email, name);
 
-    // If the DB email is a placeholder and we now have a real one, update it
+    // If the DB email is a placeholder and we now have a real one, update it.
+    // Guard against duplicate-email collisions so the request never 500s.
     if (email && user.email.includes("@noemail.tempnest.internal") && email !== user.email) {
       try {
-        await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-        user.email = email;
-      } catch (err: any) {
-        // If another account already has this email, keep the placeholder to avoid a unique constraint crash
-        if (err?.message?.includes("unique constraint") || err?.message?.includes("duplicate key")) {
-          req.log.warn({ email, userId: user.id }, "Email already belongs to another account");
+        const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+        if (existing.length > 0 && existing[0].id !== user.id) {
+          req.log.warn({ email, userId: user.id }, "Email already belongs to another account; keeping placeholder");
         } else {
-          throw err;
+          await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+          user.email = email;
         }
+      } catch (err: any) {
+        req.log.warn({ err, email, userId: user.id }, "Could not update placeholder email; keeping it");
       }
     }
 
