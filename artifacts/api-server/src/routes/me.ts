@@ -27,19 +27,21 @@ router.get("/", requireAuth, async (req, res) => {
 
     const user = await getOrCreateUser(clerkId, email, name);
 
-    // If the DB email is a placeholder and we now have a real one, update it.
-    // Guard against duplicate-email collisions so the request never 500s.
-    if (email && user.email.includes("@noemail.tempnest.internal") && email !== user.email) {
+    // If the DB email is missing/placeholder and we now have a real one, update it.
+    // The auth helper already resolves duplicates, but this keeps the DB email current
+    // in case the lookup context changes.
+    const isDbPlaceholder = !user.email || user.email.includes("@noemail.tempnest.internal");
+    if (email && isDbPlaceholder && email !== user.email) {
       try {
         const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
         if (existing.length > 0 && existing[0].id !== user.id) {
-          req.log.warn({ email, userId: user.id }, "Email already belongs to another account; keeping placeholder");
+          req.log.warn({ email, userId: user.id }, "Email already belongs to another account; keeping current");
         } else {
           await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
           user.email = email;
         }
       } catch (err: any) {
-        req.log.warn({ err, email, userId: user.id }, "Could not update placeholder email; keeping it");
+        req.log.warn({ err, email, userId: user.id }, "Could not update email; keeping current");
       }
     }
 

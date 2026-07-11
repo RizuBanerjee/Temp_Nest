@@ -174,7 +174,7 @@ router.post("/checkout", requireAuth, async (req, res) => {
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { userId: String(user.id), type: "credits", creditPackId, credits: String(pack.credits) },
-        customer_email: user.email,
+        customer_email: user.email ?? undefined,
       });
 
       await db.insert(paymentsTable).values({
@@ -204,7 +204,7 @@ router.post("/checkout", requireAuth, async (req, res) => {
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { userId: String(user.id), type: "subscription", planId },
-        customer_email: user.email,
+        customer_email: user.email ?? undefined,
       });
 
       await db.insert(paymentsTable).values({

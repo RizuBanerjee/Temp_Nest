@@ -32,44 +32,65 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
 };
 
 export const getOrCreateUser = async (clerkId: string, email: string, name: string) => {
-  // 1. If we have a real email, prefer the account that owns that email.
-  //    This merges duplicate accounts created by different Clerk sign-in methods
-  //    (e.g. Google vs email/password) so the same email always maps to one DB row.
-  if (email && !email.includes("@noemail.tempnest.internal")) {
-    const [emailUser] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
-    if (emailUser) {
-      if (emailUser.clerkId !== clerkId) {
+  // A real email is used as the canonical identity key. Anything else (missing,
+  // empty, or a placeholder) is treated as unknown so we never store a Clerk id
+  // in the email column.
+  const isPlaceholder = !email || email.includes("@noemail.tempnest.internal");
+  const realEmail = isPlaceholder ? null : email;
+
+  // 1. Look up the row already tied to this Clerk session.
+  let [currentUser] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId)).limit(1);
+
+  if (currentUser) {
+    if (realEmail) {
+      if (currentUser.email !== realEmail) {
+        const [emailOwner] = await db.select().from(usersTable).where(eq(usersTable.email, realEmail)).limit(1);
+        if (emailOwner && emailOwner.id !== currentUser.id) {
+          // Canonical account already exists. Remove the duplicate session row
+          // (usually a placeholder) and rebind the Clerk id to the canonical row.
+          // Related data cascades on delete; if you need to preserve data from
+          // the duplicate row, migrate it here before deleting.
+          await db.delete(usersTable).where(eq(usersTable.id, currentUser.id));
+          await db.update(usersTable)
+            .set({ clerkId, updatedAt: new Date() })
+            .where(eq(usersTable.id, emailOwner.id));
+          emailOwner.clerkId = clerkId;
+          return emailOwner;
+        }
+        // No other owner: update this row with the real email.
         await db.update(usersTable)
-          .set({ clerkId, updatedAt: new Date() })
-          .where(eq(usersTable.id, emailUser.id));
-        emailUser.clerkId = clerkId;
+          .set({ email: realEmail, name: name || currentUser.name, updatedAt: new Date() })
+          .where(eq(usersTable.id, currentUser.id));
+        currentUser.email = realEmail;
+        if (name) currentUser.name = name;
+      } else if (name && name !== currentUser.name) {
+        await db.update(usersTable)
+          .set({ name, updatedAt: new Date() })
+          .where(eq(usersTable.id, currentUser.id));
+        currentUser.name = name;
       }
-      return emailUser;
+    }
+    return currentUser;
+  }
+
+  // 2. No current row. If we have a real email, prefer the canonical account.
+  if (realEmail) {
+    const [emailOwner] = await db.select().from(usersTable).where(eq(usersTable.email, realEmail)).limit(1);
+    if (emailOwner) {
+      await db.update(usersTable)
+        .set({ clerkId, updatedAt: new Date() })
+        .where(eq(usersTable.id, emailOwner.id));
+      emailOwner.clerkId = clerkId;
+      return emailOwner;
     }
   }
 
-  const existing = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId)).limit(1);
-  if (existing[0]) {
-    const user = existing[0];
-    // Update a placeholder email to the real one if we now have it and it's not taken.
-    if (email && user.email.includes("@noemail.tempnest.internal") && email !== user.email) {
-      const [emailOwner] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
-      if (!emailOwner) {
-        await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-        user.email = email;
-      }
-    }
-    return user;
-  }
-
-  // Use a unique placeholder when email is not available (e.g. social logins that don't expose email)
-  const safeEmail = email || `${clerkId}@noemail.tempnest.internal`;
-
+  // 3. Create a new user with a NULL email when none is provided.
   try {
     const [newUser] = await db.insert(usersTable).values({
       clerkId,
-      email: safeEmail,
-      name: name || (email ? email.split("@")[0] : clerkId.slice(-8)),
+      email: realEmail,
+      name: name || (realEmail ? realEmail.split("@")[0] : clerkId.slice(-8)),
       plan: "free",
       credits: 50,
       maxCredits: 50,
@@ -77,12 +98,10 @@ export const getOrCreateUser = async (clerkId: string, email: string, name: stri
       maxInboxes: 1,
       status: "active",
       isAdmin: false,
-      // Set lastRefillAt on creation so the 24-hour window starts from now
       lastRefillAt: new Date(),
     }).returning();
     return newUser;
   } catch (err: any) {
-    // If there's a conflict on email (race condition), retry the select
     if (err?.message?.includes("unique constraint") || err?.message?.includes("duplicate key")) {
       const retry = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId)).limit(1);
       if (retry[0]) return retry[0];

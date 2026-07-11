@@ -6,54 +6,6 @@ import { getAuth, clerkClient } from "@clerk/express";
 
 const router = Router();
 
-// Claim admin — grants admin to the calling user if no admin exists yet
-// or if ADMIN_EMAIL env var matches their verified Clerk email
-router.post("/claim", requireAuth, async (req, res) => {
-  try {
-    const clerkId = (req as any).clerkId as string;
-    const auth = getAuth(req);
-
-    const user = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId)).limit(1);
-    if (!user[0]) { res.status(404).json({ error: "User not found" }); return; }
-
-    // Fetch real email from Clerk API since sessionClaims may not include it
-    let clerkEmail = "";
-    try {
-      const clerkUser = await clerkClient.users.getUser(clerkId);
-      clerkEmail = clerkUser?.emailAddresses?.find(e => e.id === clerkUser.primaryEmailAddressId)?.emailAddress
-        || clerkUser?.emailAddresses?.[0]?.emailAddress
-        || "";
-    } catch (e) {
-      req.log.warn({ err: e }, "Could not fetch Clerk user email");
-    }
-
-    const adminEmail = process.env.ADMIN_EMAIL;
-    if (!adminEmail) {
-      res.status(500).json({ error: "Admin email not configured" }); return;
-    }
-
-    if (adminEmail !== clerkEmail) {
-      res.status(403).json({ error: "You are not authorized to claim admin" }); return;
-    }
-
-    // Also update the user's email in DB if we got a real one from Clerk
-    const updates: any = { isAdmin: true, updatedAt: new Date() };
-    if (clerkEmail && user[0].email.includes("@noemail.tempnest.internal")) {
-      updates.email = clerkEmail;
-    }
-
-    const [updated] = await db.update(usersTable)
-      .set(updates)
-      .where(eq(usersTable.clerkId, clerkId))
-      .returning();
-
-    res.json({ success: true, isAdmin: updated.isAdmin });
-  } catch (err) {
-    req.log.error({ err }, "Failed to claim admin");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
 router.get("/stats", requireAdmin, async (req, res) => {
   try {
     const [totalUsers] = await db.select({ count: count() }).from(usersTable);
