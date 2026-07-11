@@ -3,11 +3,25 @@ import { PublicLayout } from "@/components/layout/public-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { Shield, Zap, Mail, Key, Copy, Check, RefreshCw, Trash2, Clock, ArrowRight, Lock, Globe, X, ShieldCheck } from "lucide-react";
+import {
+  Shield,
+  Zap,
+  Mail,
+  Key,
+  Copy,
+  Check,
+  RefreshCw,
+  Trash2,
+  Clock,
+  ArrowRight,
+  Lock,
+  Globe,
+  X,
+  ShieldCheck,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { apiFetch } from "@/lib/api";
 
 interface TempInbox {
   id: string;
@@ -44,7 +58,7 @@ function TryItSection() {
     setLoading(true);
     setEmails([]);
     try {
-      const res = await fetch(`${BASE}/api/public/temp-inbox`);
+      const res = await apiFetch("/api/public/temp-inbox");
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setInbox(data);
@@ -60,7 +74,9 @@ function TryItSection() {
   async function checkEmails(inboxData: TempInbox) {
     if (!inboxData.token) return;
     try {
-      const res = await fetch(`${BASE}/api/public/temp-inbox/messages?token=${encodeURIComponent(inboxData.token)}`);
+      const res = await apiFetch(
+        `/api/public/temp-inbox/messages?token=${encodeURIComponent(inboxData.token)}`,
+      );
       if (!res.ok) return;
       const data = await res.json();
       setEmails(data);
@@ -80,7 +96,7 @@ function TryItSection() {
     if (countdownRef.current) clearInterval(countdownRef.current);
     setCountdown(30);
     countdownRef.current = setInterval(() => {
-      setCountdown(prev => {
+      setCountdown((prev) => {
         if (prev <= 1) {
           checkEmails(inboxData);
           return 30;
@@ -110,10 +126,16 @@ function TryItSection() {
     setSelectedEmail(email);
     setEmailDetailLoading(true);
     try {
-      const res = await fetch(`${BASE}/api/public/temp-inbox/messages/${email.id}?token=${encodeURIComponent(inbox.token)}`);
+      const res = await apiFetch(
+        `/api/public/temp-inbox/messages/${email.id}?token=${encodeURIComponent(inbox.token)}`,
+      );
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      setSelectedEmail({ ...email, bodyText: data.bodyText, bodyHtml: data.bodyHtml });
+      setSelectedEmail({
+        ...email,
+        bodyText: data.bodyText,
+        bodyHtml: data.bodyHtml,
+      });
     } catch {
       toast.error("Could not load email details");
     } finally {
@@ -125,7 +147,11 @@ function TryItSection() {
     try {
       const doc = iframeRef.current?.contentDocument;
       if (doc) {
-        const height = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 200);
+        const height = Math.max(
+          doc.body.scrollHeight,
+          doc.documentElement.scrollHeight,
+          200,
+        );
         setIframeHeight(height + 32);
       }
     } catch (_) {}
@@ -157,24 +183,33 @@ function TryItSection() {
 
   useEffect(() => {
     generateInbox();
-    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
   }, []);
 
   return (
     <section id="try-it" className="py-24 bg-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
-          <Badge className="bg-primary/10 text-primary border-primary/20 mb-4 px-3 py-1">No account needed</Badge>
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Try it right now</h2>
+          <Badge className="bg-primary/10 text-primary border-primary/20 mb-4 px-3 py-1">
+            No account needed
+          </Badge>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Try it right now
+          </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Your temporary email address is ready. Use it anywhere, receive emails instantly — no sign-up required.
+            Your temporary email address is ready. Use it anywhere, receive
+            emails instantly — no sign-up required.
           </p>
         </div>
 
         <div className="max-w-2xl mx-auto">
           {/* Email address display */}
           <div className="border-2 border-dashed border-primary/30 rounded-2xl p-6 bg-primary/5 mb-5">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-medium">Your Temporary Email Address</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-medium">
+              Your Temporary Email Address
+            </p>
             {loading ? (
               <div className="h-10 bg-muted/50 rounded-lg animate-pulse" />
             ) : (
@@ -186,26 +221,51 @@ function TryItSection() {
                   onClick={handleCopy}
                   className="w-11 h-11 rounded-xl bg-background border border-border/60 flex items-center justify-center hover:bg-muted hover:border-primary/40 transition-all shrink-0"
                 >
-                  {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} className="text-muted-foreground" />}
+                  {copied ? (
+                    <Check size={16} className="text-emerald-500" />
+                  ) : (
+                    <Copy size={16} className="text-muted-foreground" />
+                  )}
                 </button>
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-3">
-              Share this address, then watch emails arrive below. Auto-refreshes every {countdown}s.
+              Share this address, then watch emails arrive below. Auto-refreshes
+              every {countdown}s.
             </p>
           </div>
 
           {/* Action buttons */}
           <div className="flex gap-3 mb-6">
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing || !inbox} className="gap-2 flex-1">
-              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing || !inbox}
+              className="gap-2 flex-1"
+            >
+              <RefreshCw
+                size={14}
+                className={refreshing ? "animate-spin" : ""}
+              />
               Refresh ({countdown}s)
             </Button>
-            <Button variant="outline" size="sm" onClick={generateInbox} disabled={loading} className="gap-2 flex-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={generateInbox}
+              disabled={loading}
+              className="gap-2 flex-1"
+            >
               <Mail size={14} />
               New Address
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleDelete} className="gap-2 text-destructive hover:text-destructive">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              className="gap-2 text-destructive hover:text-destructive"
+            >
               <Trash2 size={14} />
               Delete
             </Button>
@@ -214,9 +274,15 @@ function TryItSection() {
           {/* Inbox table */}
           <div className="rounded-2xl border border-border overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-muted/30 border-b border-border">
-              <div className="col-span-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Sender</div>
-              <div className="col-span-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">Subject</div>
-              <div className="col-span-2 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">Time</div>
+              <div className="col-span-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Sender
+              </div>
+              <div className="col-span-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Subject
+              </div>
+              <div className="col-span-2 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">
+                Time
+              </div>
             </div>
 
             <AnimatePresence>
@@ -230,9 +296,15 @@ function TryItSection() {
                       <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
                     </div>
                   </div>
-                  <p className="font-semibold text-foreground mb-1">Your inbox is empty</p>
-                  <p className="text-sm text-muted-foreground">Waiting for incoming emails…</p>
-                  <p className="text-xs text-muted-foreground/60 mt-2">Auto-refreshing every {countdown} seconds</p>
+                  <p className="font-semibold text-foreground mb-1">
+                    Your inbox is empty
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Waiting for incoming emails…
+                  </p>
+                  <p className="text-xs text-muted-foreground/60 mt-2">
+                    Auto-refreshing every {countdown} seconds
+                  </p>
                 </div>
               ) : (
                 emails.map((email, i) => (
@@ -246,10 +318,14 @@ function TryItSection() {
                   >
                     <div className="col-span-4 flex items-center gap-2 min-w-0">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                      <span className="font-mono text-xs truncate text-muted-foreground">{email.from}</span>
+                      <span className="font-mono text-xs truncate text-muted-foreground">
+                        {email.from}
+                      </span>
                     </div>
                     <div className="col-span-6 flex items-center gap-2 min-w-0">
-                      <span className="text-sm truncate font-medium">{email.subject}</span>
+                      <span className="text-sm truncate font-medium">
+                        {email.subject}
+                      </span>
                       {email.hasOtp && (
                         <Badge className="text-[10px] px-1.5 py-0 bg-primary/15 text-primary border-primary/20 shrink-0 animate-pulse">
                           OTP: {email.otpCode}
@@ -258,7 +334,10 @@ function TryItSection() {
                     </div>
                     <div className="col-span-2 text-xs text-muted-foreground text-right flex items-center justify-end">
                       <Clock size={10} className="mr-1" />
-                      {new Date(email.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(email.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </div>
                   </motion.div>
                 ))
@@ -267,7 +346,9 @@ function TryItSection() {
           </div>
 
           <div className="mt-8 text-center">
-            <p className="text-muted-foreground text-sm mb-4">Want to save emails, extract OTPs, and manage multiple inboxes?</p>
+            <p className="text-muted-foreground text-sm mb-4">
+              Want to save emails, extract OTPs, and manage multiple inboxes?
+            </p>
             <Link href="/sign-up">
               <Button className="gap-2 h-11 px-8">
                 Create free account <ArrowRight size={16} />
@@ -293,13 +374,17 @@ function TryItSection() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.2 }}
               className="bg-card border border-border rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
-              onClick={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
               <div className="sticky top-0 bg-card/95 backdrop-blur border-b border-border/40 px-6 py-4 flex items-center justify-between z-10">
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-foreground truncate">{selectedEmail.subject}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">From {selectedEmail.from}</p>
+                  <h3 className="font-semibold text-foreground truncate">
+                    {selectedEmail.subject}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    From {selectedEmail.from}
+                  </p>
                 </div>
                 <button
                   onClick={() => setSelectedEmail(null)}
@@ -318,8 +403,12 @@ function TryItSection() {
                         <Key size={18} className="text-primary" />
                       </div>
                       <div>
-                        <Badge className="bg-primary/20 text-primary border-primary/30 text-xs mb-1">OTP DETECTED</Badge>
-                        <span className="font-mono text-2xl font-bold tracking-[0.15em] text-foreground block">{selectedEmail.otpCode}</span>
+                        <Badge className="bg-primary/20 text-primary border-primary/30 text-xs mb-1">
+                          OTP DETECTED
+                        </Badge>
+                        <span className="font-mono text-2xl font-bold tracking-[0.15em] text-foreground block">
+                          {selectedEmail.otpCode}
+                        </span>
                       </div>
                     </div>
                     <Button
@@ -338,14 +427,22 @@ function TryItSection() {
                 {/* Email Body */}
                 <div className="rounded-xl border border-border/60 bg-white overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30 bg-muted/30">
-                    <span className="text-xs text-muted-foreground font-medium">Message</span>
-                    <span className="text-xs text-muted-foreground">{new Date(selectedEmail.createdAt).toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      Message
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(selectedEmail.createdAt).toLocaleString()}
+                    </span>
                   </div>
 
                   {emailDetailLoading ? (
                     <div className="p-6 space-y-2">
                       {[...Array(6)].map((_, i) => (
-                        <div key={i} className="h-4 bg-muted/50 rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
+                        <div
+                          key={i}
+                          className="h-4 bg-muted/50 rounded animate-pulse"
+                          style={{ width: `${60 + Math.random() * 40}%` }}
+                        />
                       ))}
                     </div>
                   ) : selectedEmail.bodyHtml ? (
@@ -354,7 +451,12 @@ function TryItSection() {
                       srcDoc={buildIframeContent(selectedEmail.bodyHtml)}
                       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                       onLoad={handleIframeLoad}
-                      style={{ width: "100%", height: `${iframeHeight}px`, border: "none", display: "block" }}
+                      style={{
+                        width: "100%",
+                        height: `${iframeHeight}px`,
+                        border: "none",
+                        display: "block",
+                      }}
                       title="Email content"
                     />
                   ) : selectedEmail.bodyText ? (
@@ -364,7 +466,9 @@ function TryItSection() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <Mail size={32} className="mx-auto mb-3 opacity-30" />
-                      <p className="text-sm italic">This email has no readable content.</p>
+                      <p className="text-sm italic">
+                        This email has no readable content.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -388,7 +492,7 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/15 via-background to-background pointer-events-none" />
-        
+
         <div className="container mx-auto px-4 relative z-10 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -402,26 +506,34 @@ export default function Home() {
               </span>
               Next-gen throwaway inboxes
             </div>
-            
+
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-balance text-foreground">
               Disposable emails for <br className="hidden md:block" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
                 power users.
               </span>
             </h1>
-            
+
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 text-balance">
-              Instant, secure, and API-ready temporary inboxes. Built for speed, designed for privacy. No data harvesting.
+              Instant, secure, and API-ready temporary inboxes. Built for speed,
+              designed for privacy. No data harvesting.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link href="/sign-up">
-                <Button size="lg" className="w-full sm:w-auto h-12 px-8 text-base shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_25px_rgba(124,58,237,0.5)] transition-shadow">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto h-12 px-8 text-base shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_25px_rgba(124,58,237,0.5)] transition-shadow"
+                >
                   Start For Free
                 </Button>
               </Link>
               <a href="#try-it">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto h-12 px-8 text-base">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full sm:w-auto h-12 px-8 text-base"
+                >
                   Try it now — no signup
                 </Button>
               </a>
@@ -434,11 +546,17 @@ export default function Home() {
       <TryItSection />
 
       {/* Features */}
-      <section id="features" className="py-24 bg-card/30 border-y border-border/40">
+      <section
+        id="features"
+        className="py-24 bg-card/30 border-y border-border/40"
+      >
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Engineered for speed.</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">Everything you need to bypass spam, verify accounts, and protect your identity.</p>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Everything you need to bypass spam, verify accounts, and protect
+              your identity.
+            </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
@@ -486,8 +604,13 @@ export default function Home() {
                 bg: "bg-rose-400/10",
               },
             ].map((f) => (
-              <div key={f.title} className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors">
-                <div className={`w-12 h-12 rounded-lg ${f.bg} flex items-center justify-center ${f.color} mb-6`}>
+              <div
+                key={f.title}
+                className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors"
+              >
+                <div
+                  className={`w-12 h-12 rounded-lg ${f.bg} flex items-center justify-center ${f.color} mb-6`}
+                >
                   <f.icon size={24} />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{f.title}</h3>
@@ -501,16 +624,23 @@ export default function Home() {
       {/* CTA */}
       <section className="py-24">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to protect your real inbox?</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Ready to protect your real inbox?
+          </h2>
           <p className="text-muted-foreground max-w-xl mx-auto mb-8">
-            Join thousands of users who use TempNest to keep spam out and stay anonymous online.
+            Join thousands of users who use TempNest to keep spam out and stay
+            anonymous online.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/sign-up">
-              <Button size="lg" className="h-12 px-8">Get Started Free</Button>
+              <Button size="lg" className="h-12 px-8">
+                Get Started Free
+              </Button>
             </Link>
             <Link href="/pricing">
-              <Button size="lg" variant="outline" className="h-12 px-8">View Pricing</Button>
+              <Button size="lg" variant="outline" className="h-12 px-8">
+                View Pricing
+              </Button>
             </Link>
           </div>
         </div>

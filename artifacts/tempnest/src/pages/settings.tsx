@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/react";
-import { useGetMe, useUpdateMe, getGetMeQueryKey, type UserProfile } from "@workspace/api-client-react";
+import {
+  useGetMe,
+  useUpdateMe,
+  getGetMeQueryKey,
+  type UserProfile,
+} from "@workspace/api-client-react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
@@ -11,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 import { User, Shield, Bell, Palette } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 
@@ -35,7 +41,8 @@ export default function Settings() {
     }
   }, [user?.name]);
 
-  const displayEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || user?.email || "";
+  const displayEmail =
+    clerkUser?.emailAddresses?.[0]?.emailAddress || user?.email || "";
 
   useEffect(() => {
     if (user) {
@@ -46,15 +53,25 @@ export default function Settings() {
         notifyWeeklySummary: user.notifyWeeklySummary ?? false,
       });
     }
-  }, [user?.notifyNewEmail, user?.notifyOtp, user?.notifyLowCredits, user?.notifyWeeklySummary]);
+  }, [
+    user?.notifyNewEmail,
+    user?.notifyOtp,
+    user?.notifyLowCredits,
+    user?.notifyWeeklySummary,
+  ]);
 
   async function handleSave() {
-    if (!name.trim()) { toast.error("Name cannot be empty"); return; }
+    if (!name.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
     try {
-      const updated = await updateMe.mutateAsync({ data: { name: name.trim() } });
+      const updated = await updateMe.mutateAsync({
+        data: { name: name.trim() },
+      });
       // Update the cached profile immediately so the sidebar re-renders without waiting for a refetch.
       queryClient.setQueryData<UserProfile>(getGetMeQueryKey(), (old) =>
-        old ? { ...old, name: updated.name } : updated
+        old ? { ...old, name: updated.name } : updated,
       );
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       toast.success("Profile updated");
@@ -68,7 +85,7 @@ export default function Settings() {
     const next = { ...notifications, [key]: !notifications[key] };
     setNotifications(next);
     try {
-      const res = await fetch("/api/me/notifications", {
+      const res = await apiFetch("/api/me/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: next[key] }),
@@ -100,7 +117,9 @@ export default function Settings() {
 
           <div>
             <h1 className="text-2xl font-bold">Settings</h1>
-            <p className="text-muted-foreground text-sm mt-1">Manage your account and preferences.</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              Manage your account and preferences.
+            </p>
           </div>
 
           {/* Profile */}
@@ -118,20 +137,34 @@ export default function Settings() {
               <>
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input value={displayEmail} disabled className="font-mono opacity-70" />
-                  <p className="text-xs text-muted-foreground">Your email address cannot be changed here. Manage it through your Clerk account.</p>
+                  <Input
+                    value={displayEmail}
+                    disabled
+                    className="font-mono opacity-70"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your email address cannot be changed here. Manage it through
+                    your Clerk account.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Display Name</Label>
                   <Input
                     value={name}
-                    onChange={e => setName(e.target.value)}
+                    onChange={(e) => setName(e.target.value)}
                     placeholder="Enter your name"
-                    onKeyDown={e => { if (e.key === "Enter") handleSave(); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSave();
+                    }}
                   />
-                  <p className="text-xs text-muted-foreground">This name is shown in the app sidebar and your profile.</p>
+                  <p className="text-xs text-muted-foreground">
+                    This name is shown in the app sidebar and your profile.
+                  </p>
                 </div>
-                <Button onClick={handleSave} disabled={updateMe.isPending || !name.trim()}>
+                <Button
+                  onClick={handleSave}
+                  disabled={updateMe.isPending || !name.trim()}
+                >
                   {updateMe.isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </>
@@ -172,15 +205,36 @@ export default function Settings() {
             </div>
             <div className="space-y-3">
               {[
-                { label: "New email received", desc: "Get notified when a new email arrives in any inbox", key: "notifyNewEmail" as const },
-                { label: "OTP detected", desc: "Alert when a verification code is found in an email", key: "notifyOtp" as const },
-                { label: "Low credits warning", desc: "Notify when credits drop below 20% of your limit", key: "notifyLowCredits" as const },
-                { label: "Weekly usage summary", desc: "Email digest of your TempNest activity each week", key: "notifyWeeklySummary" as const },
+                {
+                  label: "New email received",
+                  desc: "Get notified when a new email arrives in any inbox",
+                  key: "notifyNewEmail" as const,
+                },
+                {
+                  label: "OTP detected",
+                  desc: "Alert when a verification code is found in an email",
+                  key: "notifyOtp" as const,
+                },
+                {
+                  label: "Low credits warning",
+                  desc: "Notify when credits drop below 20% of your limit",
+                  key: "notifyLowCredits" as const,
+                },
+                {
+                  label: "Weekly usage summary",
+                  desc: "Email digest of your TempNest activity each week",
+                  key: "notifyWeeklySummary" as const,
+                },
               ].map((item) => (
-                <div key={item.label} className="flex items-start justify-between gap-4 py-2 border-b border-border/20 last:border-0">
+                <div
+                  key={item.label}
+                  className="flex items-start justify-between gap-4 py-2 border-b border-border/20 last:border-0"
+                >
                   <div>
                     <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {item.desc}
+                    </p>
                   </div>
                   <button
                     onClick={() => handleToggleNotification(item.key)}
@@ -200,29 +254,53 @@ export default function Settings() {
               <Shield size={16} className="text-primary" />
               <h2 className="font-semibold">Account</h2>
             </div>
-            {isLoading ? <Skeleton className="h-24 w-full" /> : (
+            {isLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Member since</span>
-                  <span>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—"}</span>
+                  <span>
+                    {user?.createdAt
+                      ? new Date(user.createdAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })
+                      : "—"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Account status</span>
-                  <Badge className={user?.status === "active" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/20" : "bg-red-500/20 text-red-400"}>
+                  <Badge
+                    className={
+                      user?.status === "active"
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
+                        : "bg-red-500/20 text-red-400"
+                    }
+                  >
                     {user?.status ?? "active"}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">User ID</span>
-                  <span className="font-mono text-xs text-muted-foreground/70">#{user?.id}</span>
+                  <span className="font-mono text-xs text-muted-foreground/70">
+                    #{user?.id}
+                  </span>
                 </div>
                 <div className="pt-3 border-t border-border/30">
-                  <p className="text-xs text-muted-foreground">To delete your account or manage authentication methods, visit your <span className="text-primary cursor-pointer">account settings</span>.</p>
+                  <p className="text-xs text-muted-foreground">
+                    To delete your account or manage authentication methods,
+                    visit your{" "}
+                    <span className="text-primary cursor-pointer">
+                      account settings
+                    </span>
+                    .
+                  </p>
                 </div>
               </div>
             )}
           </Card>
-
         </div>
       </div>
     </MainLayout>

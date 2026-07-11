@@ -36,7 +36,11 @@ app.use(
 // Clerk proxy must come before body parsers (streams raw bytes)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+const allowedOrigins = [process.env.APP_URL, "http://localhost:5173"].filter(
+  (o): o is string => Boolean(o),
+);
+
+app.use(cors({ credentials: true, origin: allowedOrigins }));
 // Stripe webhooks need the raw request body to verify signatures
 app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
