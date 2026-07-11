@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { db, usersTable, creditTransactionsTable, inboxesTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  creditTransactionsTable,
+  inboxesTable,
+} from "@workspace/db";
 import { eq, count } from "drizzle-orm";
 import { requireAuth, getOrCreateUser } from "../lib/auth";
 import { PLANS } from "./plans";
@@ -11,16 +16,25 @@ router.get("/", requireAuth, async (req, res) => {
   try {
     const auth = getAuth(req);
     const clerkId = auth!.userId!;
-    let email = (auth?.sessionClaims?.email as string) || (auth?.sessionClaims?.primaryEmail as string) || "";
-    const name = (auth?.sessionClaims?.fullName as string) || (auth?.sessionClaims?.firstName as string) || "";
+    let email =
+      (auth?.sessionClaims?.email as string) ||
+      (auth?.sessionClaims?.primaryEmail as string) ||
+      "";
+    const name =
+      (auth?.sessionClaims?.fullName as string) ||
+      (auth?.sessionClaims?.firstName as string) ||
+      "";
 
     // If sessionClaims doesn't have email, try fetching from Clerk API
     if (!email) {
       try {
         const clerkUser = await clerkClient.users.getUser(clerkId);
-        email = clerkUser?.emailAddresses?.find(e => e.id === clerkUser.primaryEmailAddressId)?.emailAddress
-          || clerkUser?.emailAddresses?.[0]?.emailAddress
-          || "";
+        email =
+          clerkUser?.emailAddresses?.find(
+            (e) => e.id === clerkUser.primaryEmailAddressId,
+          )?.emailAddress ||
+          clerkUser?.emailAddresses?.[0]?.emailAddress ||
+          "";
       } catch (e) {
         req.log.warn({ err: e }, "Could not fetch Clerk user email");
       }
@@ -31,18 +45,31 @@ router.get("/", requireAuth, async (req, res) => {
     // If the DB email is missing/placeholder and we now have a real one, update it.
     // The auth helper already resolves duplicates, but this keeps the DB email current
     // in case the lookup context changes.
-    const isDbPlaceholder = !user.email || user.email.includes("@noemail.tempnest.internal");
+    const isDbPlaceholder =
+      !user.email || user.email.includes("@noemail.tempnest.internal");
     if (email && isDbPlaceholder && email !== user.email) {
       try {
-        const existing = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+        const existing = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.email, email));
         if (existing.length > 0 && existing[0].id !== user.id) {
-          req.log.warn({ email, userId: user.id }, "Email already belongs to another account; keeping current");
+          req.log.warn(
+            { email, userId: user.id },
+            "Email already belongs to another account; keeping current",
+          );
         } else {
-          await db.update(usersTable).set({ email, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+          await db
+            .update(usersTable)
+            .set({ email, updatedAt: new Date() })
+            .where(eq(usersTable.id, user.id));
           user.email = email;
         }
       } catch (err: any) {
-        req.log.warn({ err, email, userId: user.id }, "Could not update email; keeping current");
+        req.log.warn(
+          { err, email, userId: user.id },
+          "Could not update email; keeping current",
+        );
       }
     }
 
@@ -56,20 +83,23 @@ router.get("/", requireAuth, async (req, res) => {
     // Apply any scheduled downgrade (or free fallback) once the current paid plan expires.
     if (planExpiryDate && planExpiryDate.getTime() <= now.getTime()) {
       const fallbackPlan = nextPlan || "free";
-      const planConfig = PLANS.find(p => p.id === fallbackPlan) || PLANS[0];
-      const [updated] = await db.update(usersTable).set({
-        plan: fallbackPlan as any,
-        currentPlan: fallbackPlan as any,
-        nextPlan: null,
-        planStartDate: now,
-        planExpiryDate: null,
-        planRenewalReminderSentAt: null,
-        credits: planConfig.credits,
-        maxCredits: planConfig.maxCredits,
-        maxInboxes: planConfig.maxInboxes,
-        dailyRefill: planConfig.dailyRefill,
-        updatedAt: now,
-      }).where(eq(usersTable.id, user.id)).returning();
+      const planConfig = PLANS.find((p) => p.id === fallbackPlan) || PLANS[0];
+      const [updated] = await db
+        .update(usersTable)
+        .set({
+          currentPlan: fallbackPlan as any,
+          nextPlan: null,
+          planStartDate: now,
+          planExpiryDate: null,
+          planRenewalReminderSentAt: null,
+          credits: planConfig.credits,
+          maxCredits: planConfig.maxCredits,
+          maxInboxes: planConfig.maxInboxes,
+          dailyRefill: planConfig.dailyRefill,
+          updatedAt: now,
+        })
+        .where(eq(usersTable.id, user.id))
+        .returning();
       if (updated) {
         user = updated;
         currentPlan = updated.currentPlan;
@@ -79,13 +109,19 @@ router.get("/", requireAuth, async (req, res) => {
       }
     } else if (planExpiryDate) {
       // In-app reminder once per week when the paid plan is about to expire.
-      const daysUntilExpiry = (planExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+      const daysUntilExpiry =
+        (planExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
       const reminderThreshold = 7;
-      const reminderAlreadySent = user.planRenewalReminderSentAt &&
-        (now.getTime() - user.planRenewalReminderSentAt.getTime()) < (7 * 24 * 60 * 60 * 1000);
+      const reminderAlreadySent =
+        user.planRenewalReminderSentAt &&
+        now.getTime() - user.planRenewalReminderSentAt.getTime() <
+          7 * 24 * 60 * 60 * 1000;
       if (daysUntilExpiry <= reminderThreshold && !reminderAlreadySent) {
         planRenewalReminder = true;
-        await db.update(usersTable).set({ planRenewalReminderSentAt: now }).where(eq(usersTable.id, user.id));
+        await db
+          .update(usersTable)
+          .set({ planRenewalReminderSentAt: now })
+          .where(eq(usersTable.id, user.id));
       }
     }
 
@@ -94,14 +130,21 @@ router.get("/", requireAuth, async (req, res) => {
     // - This prevents new users from getting an immediate refill (their lastRefillAt is set at creation).
     // - Old users with null lastRefillAt will refill once createdAt is 24h+ in the past.
     const refillBasis = user.lastRefillAt || user.createdAt;
-    const hoursSince = (now.getTime() - refillBasis.getTime()) / (1000 * 60 * 60);
+    const hoursSince =
+      (now.getTime() - refillBasis.getTime()) / (1000 * 60 * 60);
     const shouldRefill = hoursSince >= 24;
 
     if (shouldRefill && user.credits < user.maxCredits) {
-      const newCredits = Math.min(user.credits + user.dailyRefill, user.maxCredits);
+      const newCredits = Math.min(
+        user.credits + user.dailyRefill,
+        user.maxCredits,
+      );
       const refillAmount = newCredits - user.credits;
       if (refillAmount > 0) {
-        await db.update(usersTable).set({ credits: newCredits, lastRefillAt: now, updatedAt: now }).where(eq(usersTable.id, user.id));
+        await db
+          .update(usersTable)
+          .set({ credits: newCredits, lastRefillAt: now, updatedAt: now })
+          .where(eq(usersTable.id, user.id));
         await db.insert(creditTransactionsTable).values({
           userId: user.id,
           type: "refill",
@@ -114,14 +157,16 @@ router.get("/", requireAuth, async (req, res) => {
       }
     }
 
-    const [inboxCount] = await db.select({ count: count() }).from(inboxesTable).where(eq(inboxesTable.userId, user.id));
+    const [inboxCount] = await db
+      .select({ count: count() })
+      .from(inboxesTable)
+      .where(eq(inboxesTable.userId, user.id));
 
     res.json({
       id: user.id,
       clerkId: user.clerkId,
       email: user.email,
       name: user.name,
-      plan: currentPlan,
       currentPlan,
       nextPlan,
       planStartDate: planStartDate?.toISOString() ?? null,
@@ -151,19 +196,22 @@ router.patch("/", requireAuth, async (req, res) => {
     const clerkId = (req as any).clerkId;
     const { name } = req.body;
 
-    const [user] = await db.update(usersTable)
+    const [user] = await db
+      .update(usersTable)
       .set({ name: name || "", updatedAt: new Date() })
       .where(eq(usersTable.clerkId, clerkId))
       .returning();
 
-    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
 
     res.json({
       id: user.id,
       clerkId: user.clerkId,
       email: user.email,
       name: user.name,
-      plan: user.currentPlan,
       currentPlan: user.currentPlan,
       nextPlan: user.nextPlan,
       planStartDate: user.planStartDate?.toISOString() ?? null,
@@ -191,20 +239,30 @@ router.patch("/", requireAuth, async (req, res) => {
 router.patch("/notifications", requireAuth, async (req, res) => {
   try {
     const clerkId = (req as any).clerkId;
-    const { notifyNewEmail, notifyOtp, notifyLowCredits, notifyWeeklySummary } = req.body;
+    const { notifyNewEmail, notifyOtp, notifyLowCredits, notifyWeeklySummary } =
+      req.body;
 
-    const updates: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
-    if (typeof notifyNewEmail === "boolean") updates.notifyNewEmail = notifyNewEmail;
+    const updates: Partial<typeof usersTable.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (typeof notifyNewEmail === "boolean")
+      updates.notifyNewEmail = notifyNewEmail;
     if (typeof notifyOtp === "boolean") updates.notifyOtp = notifyOtp;
-    if (typeof notifyLowCredits === "boolean") updates.notifyLowCredits = notifyLowCredits;
-    if (typeof notifyWeeklySummary === "boolean") updates.notifyWeeklySummary = notifyWeeklySummary;
+    if (typeof notifyLowCredits === "boolean")
+      updates.notifyLowCredits = notifyLowCredits;
+    if (typeof notifyWeeklySummary === "boolean")
+      updates.notifyWeeklySummary = notifyWeeklySummary;
 
-    const [user] = await db.update(usersTable)
+    const [user] = await db
+      .update(usersTable)
       .set(updates)
       .where(eq(usersTable.clerkId, clerkId))
       .returning();
 
-    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
 
     res.json({
       notifyNewEmail: user.notifyNewEmail,

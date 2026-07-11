@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import fs from "fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
@@ -24,6 +25,16 @@ if (!basePath) {
   throw new Error(
     "BASE_PATH environment variable is required but was not provided.",
   );
+}
+
+// In Replit, /home/runner/workspace resolves to a /dfs/... real path. Allow the whole
+// monorepo root so Vite can serve workspace packages such as @workspace/api-client-react.
+const workspaceRoot = path.resolve(import.meta.dirname, "..", "..");
+let allowedWorkspaceRoot: string;
+try {
+  allowedWorkspaceRoot = fs.realpathSync(workspaceRoot);
+} catch {
+  allowedWorkspaceRoot = workspaceRoot;
 }
 
 export default defineConfig({
@@ -49,7 +60,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
-      "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      "@assets": path.resolve(
+        import.meta.dirname,
+        "..",
+        "..",
+        "attached_assets",
+      ),
     },
     dedupe: ["react", "react-dom"],
   },
@@ -65,6 +81,7 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
+      allow: [allowedWorkspaceRoot],
     },
   },
   preview: {

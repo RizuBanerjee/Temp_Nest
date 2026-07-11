@@ -7,7 +7,6 @@
  */
 import type { UserProfileCurrentPlan } from './userProfileCurrentPlan';
 import type { UserProfileNextPlan } from './userProfileNextPlan';
-import type { UserProfilePlan } from './userProfilePlan';
 import type { UserProfileStatus } from './userProfileStatus';
 
 export interface UserProfile {
@@ -15,7 +14,6 @@ export interface UserProfile {
   clerkId: string;
   email: string;
   name: string;
-  plan: UserProfilePlan;
   currentPlan: UserProfileCurrentPlan;
   /** @nullable */
   nextPlan?: UserProfileNextPlan;

@@ -625,7 +625,7 @@ components:
     # ── User ────────────────────────────────────────────────────────
     UserProfile:
       type: object
-      required: [id, clerkId, email, name, plan, currentPlan, credits, createdAt]
+      required: [id, clerkId, email, name, currentPlan, credits, createdAt]
       properties:
         id:
           type: integer
@@ -635,9 +635,6 @@ components:
           type: string
         name:
           type: string
-        plan:
-          type: string
-          enum: [free, pro, business]
         currentPlan:
           type: string
           enum: [free, pro, business]

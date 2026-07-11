@@ -9,15 +9,6 @@ export interface HealthStatus {
   status: string;
 }
 
-export type UserProfilePlan = typeof UserProfilePlan[keyof typeof UserProfilePlan];
-
-
-export const UserProfilePlan = {
-  free: 'free',
-  pro: 'pro',
-  business: 'business',
-} as const;
-
 export type UserProfileCurrentPlan = typeof UserProfileCurrentPlan[keyof typeof UserProfileCurrentPlan];
 
 
@@ -53,7 +44,6 @@ export interface UserProfile {
   clerkId: string;
   email: string;
   name: string;
-  plan: UserProfilePlan;
   currentPlan: UserProfileCurrentPlan;
   /** @nullable */
   nextPlan?: UserProfileNextPlan;

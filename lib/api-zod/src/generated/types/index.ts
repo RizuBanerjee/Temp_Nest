@@ -48,6 +48,5 @@ export * from './usageTotals';
 export * from './userProfile';
 export * from './userProfileCurrentPlan';
 export * from './userProfileNextPlan';
-export * from './userProfilePlan';
 export * from './userProfileStatus';
 export * from './userProfileUpdate';
