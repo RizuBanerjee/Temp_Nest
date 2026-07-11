@@ -400,6 +400,39 @@ paths:
         "401":
           description: Unauthorized
 
+  /subscriptions/schedule-downgrade:
+    post:
+      operationId: scheduleDowngrade
+      tags: [subscriptions]
+      summary: Schedule a downgrade to a lower plan for the next billing period
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleDowngradeInput"
+      responses:
+        "200":
+          description: Downgrade scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, currentPlanId, nextPlanId, planExpiryDate]
+                properties:
+                  success:
+                    type: boolean
+                  currentPlanId:
+                    type: string
+                  nextPlanId:
+                    type: string
+                  planExpiryDate:
+                    type: ["string", "null"]
+        "400":
+          description: Invalid downgrade request
+        "401":
+          description: Unauthorized
+
   # ── Payments ─────────────────────────────────────────────────────
   /payments/checkout:
     post:
@@ -592,7 +625,7 @@ components:
     # ── User ────────────────────────────────────────────────────────
     UserProfile:
       type: object
-      required: [id, clerkId, email, name, plan, credits, createdAt]
+      required: [id, clerkId, email, name, plan, currentPlan, credits, createdAt]
       properties:
         id:
           type: integer
@@ -605,6 +638,18 @@ components:
         plan:
           type: string
           enum: [free, pro, business]
+        currentPlan:
+          type: string
+          enum: [free, pro, business]
+        nextPlan:
+          type: ["string", "null"]
+          enum: [free, pro, business, null]
+        planStartDate:
+          type: ["string", "null"]
+        planExpiryDate:
+          type: ["string", "null"]
+        planRenewalReminder:
+          type: boolean
         credits:
           type: integer
         maxCredits:
@@ -862,19 +907,35 @@ components:
     # ── Subscriptions ────────────────────────────────────────────────
     Subscription:
       type: object
-      required: [planId, planName, status, currentPeriodEnd]
+      required: [planId, planName, status, currentPeriodEnd, planStartDate, planExpiryDate]
       properties:
         planId:
           type: string
         planName:
           type: string
+        nextPlanId:
+          type: ["string", "null"]
+        nextPlanName:
+          type: ["string", "null"]
         status:
           type: string
           enum: [active, cancelled, past_due, free]
         currentPeriodEnd:
           type: ["string", "null"]
+        planStartDate:
+          type: ["string", "null"]
+        planExpiryDate:
+          type: ["string", "null"]
         cancelAtPeriodEnd:
           type: boolean
+
+    ScheduleDowngradeInput:
+      type: object
+      required: [planId]
+      properties:
+        planId:
+          type: string
+          enum: [free, pro, business]
 
     # ── Payments ─────────────────────────────────────────────────────
     CheckoutInput:

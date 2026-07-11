@@ -2,7 +2,7 @@ import { useListPlans, useCreateCheckoutSession, useGetMe, getGetMeQueryKey } fr
 import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Zap, ChevronLeft } from "lucide-react";
+import { Check, Zap, ChevronLeft, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { Logo } from "@/components/logo";
@@ -40,6 +40,16 @@ export default function Pricing() {
   const { isSignedIn, isLoaded } = useUser();
   const { data: user } = useGetMe({ query: { enabled: !!isSignedIn, queryKey: getGetMeQueryKey() } });
 
+  const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, business: 2 };
+  function comparePlans(a: string, b: string): number {
+    return (PLAN_RANK[a] ?? 0) - (PLAN_RANK[b] ?? 0);
+  }
+  function isPlanActive(): boolean {
+    if (user?.currentPlan === "free") return true;
+    if (!user?.planExpiryDate) return false;
+    return new Date(user.planExpiryDate).getTime() > Date.now();
+  }
+
   async function subscribe(planId: string) {
     if (planId === "free") {
       window.location.href = isSignedIn ? "/dashboard" : "/sign-up";
@@ -47,6 +57,10 @@ export default function Pricing() {
     }
     if (!isSignedIn) {
       window.location.href = "/sign-up?redirect=/pricing";
+      return;
+    }
+    if (comparePlans(planId, user?.currentPlan || "free") < 0 && isPlanActive()) {
+      toast.error("You cannot downgrade while your current plan is active. Go to Credits to schedule a downgrade.");
       return;
     }
     try {
@@ -103,7 +117,9 @@ export default function Pricing() {
 
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {PLANS.map(plan => {
-            const isCurrent = user?.plan === plan.id;
+            const isCurrent = user?.currentPlan === plan.id;
+            const isLower = comparePlans(plan.id, user?.currentPlan || "free") < 0;
+            const isDowngradeBlocked = isLower && isPlanActive();
             return (
               <div
                 key={plan.id}
@@ -129,6 +145,12 @@ export default function Pricing() {
                     <span className="text-4xl font-bold">{plan.price}</span>
                     <span className="text-muted-foreground text-sm mb-1">{plan.period}</span>
                   </div>
+                  {isCurrent && user?.planExpiryDate && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <Calendar size={12} className="inline mr-1" />
+                      Active until {new Date(user.planExpiryDate).toLocaleString()}
+                    </p>
+                  )}
                 </div>
 
                 <ul className="space-y-3 mb-8">
@@ -144,10 +166,15 @@ export default function Pricing() {
                   className="w-full"
                   variant={plan.highlight ? "default" : "outline"}
                   onClick={() => subscribe(plan.id)}
-                  disabled={checkout.isPending || isCurrent}
+                  disabled={checkout.isPending || isCurrent || isDowngradeBlocked}
                 >
-                  {isCurrent ? "Current Plan" : plan.id === "free" ? "Get Started Free" : `Subscribe to ${plan.name}`}
+                  {isCurrent ? "Current Plan" : isDowngradeBlocked ? "Active Plan" : plan.id === "free" ? "Get Started Free" : `Subscribe to ${plan.name}`}
                 </Button>
+                {isDowngradeBlocked && (
+                  <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                    Available after your current plan expires
+                  </p>
+                )}
               </div>
             );
           })}

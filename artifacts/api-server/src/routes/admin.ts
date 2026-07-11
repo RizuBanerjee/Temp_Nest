@@ -12,8 +12,8 @@ router.get("/stats", requireAdmin, async (req, res) => {
     const [activeUsers] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.status, "active"));
     const [totalInboxes] = await db.select({ count: count() }).from(inboxesTable);
     const [totalEmails] = await db.select({ count: count() }).from(emailsTable);
-    const [proUsers] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.plan, "pro"));
-    const [businessUsers] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.plan, "business"));
+    const [proUsers] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.currentPlan, "pro"));
+    const [businessUsers] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.currentPlan, "business"));
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -60,7 +60,7 @@ router.get("/users", requireAdmin, async (req, res) => {
       const [inboxCount] = await db.select({ count: count() }).from(inboxesTable).where(eq(inboxesTable.userId, u.id));
       const [emailCount] = await db.select({ count: count() }).from(emailsTable).where(eq(emailsTable.userId, u.id));
       return {
-        id: u.id, clerkId: u.clerkId, email: u.email, name: u.name, plan: u.plan,
+        id: u.id, clerkId: u.clerkId, email: u.email, name: u.name, plan: u.currentPlan,
         credits: u.credits, status: u.status, isAdmin: u.isAdmin,
         inboxCount: Number(inboxCount?.count || 0),
         emailCount: Number(emailCount?.count || 0),
@@ -85,14 +85,17 @@ router.patch("/users/:userId", requireAdmin, async (req, res) => {
 
     const updates: Partial<typeof usersTable.$inferInsert> = { updatedAt: new Date() };
     if (status) updates.status = status;
-    if (plan) updates.plan = plan;
+    if (plan) {
+      updates.plan = plan;
+      updates.currentPlan = plan;
+    }
     if (grantCredits) updates.credits = Math.min(user.credits + grantCredits, user.maxCredits);
 
     const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
 
     res.json({
       id: updated.id, clerkId: updated.clerkId, email: updated.email, name: updated.name,
-      plan: updated.plan, credits: updated.credits, status: updated.status, isAdmin: updated.isAdmin,
+      plan: updated.currentPlan, credits: updated.credits, status: updated.status, isAdmin: updated.isAdmin,
       inboxCount: 0, emailCount: 0, createdAt: updated.createdAt!.toISOString(),
     });
   } catch (err) {
@@ -165,9 +168,9 @@ router.get("/revenue", requireAdmin, async (req, res) => {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, data]) => ({ month, ...data }));
 
-    const [freeCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.plan, "free"));
-    const [proCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.plan, "pro"));
-    const [bizCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.plan, "business"));
+    const [freeCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.currentPlan, "free"));
+    const [proCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.currentPlan, "pro"));
+    const [bizCount] = await db.select({ count: count() }).from(usersTable).where(eq(usersTable.currentPlan, "business"));
     const total = Number(freeCount?.count || 0) + Number(proCount?.count || 0) + Number(bizCount?.count || 0);
 
     const planDistribution = [

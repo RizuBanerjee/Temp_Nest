@@ -3,7 +3,7 @@ import { requireAuth, getOrCreateUser } from "../lib/auth";
 import { getAuth } from "@clerk/express";
 import { db, usersTable, paymentsTable, creditTransactionsTable, subscriptionsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
-import { CREDIT_PACKS, PLANS } from "./plans";
+import { CREDIT_PACKS, PLANS, comparePlans, isPlanActive } from "./plans";
 
 const router = Router();
 
@@ -70,6 +70,16 @@ async function applyCreditPurchase(userId: number, credits: number, sessionId: s
   });
 }
 
+async function cancelStripeSubscription(stripe: any, stripeSubscriptionId: string | null) {
+  if (!stripe || !stripeSubscriptionId) return;
+  try {
+    await stripe.subscriptions.cancel(stripeSubscriptionId);
+  } catch (err) {
+    // Stripe may already cancel the subscription; do not fail the upgrade.
+    console.warn("Failed to cancel previous Stripe subscription", stripeSubscriptionId, err);
+  }
+}
+
 async function applySubscription(userId: number, planId: string, sessionId: string, amount: number, currency: string, stripeSubscriptionId?: string | null, currentPeriodEnd?: Date | null) {
   const plan = PLANS.find(p => p.id === planId);
   if (!plan) return;
@@ -101,13 +111,26 @@ async function applySubscription(userId: number, planId: string, sessionId: stri
     }
     if (!claimed) return; // another worker already fulfilled this session
 
+    const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) return;
+
+    const now = new Date();
+    const planExpiry = currentPeriodEnd || now;
+
+    // The checkout endpoint already rejects active downgrades, so any paid subscription we apply here is either
+    // an upgrade, a renewal, or a new subscription after expiry. In all cases we activate it immediately.
     await tx.update(usersTable).set({
       plan: planId as any,
+      currentPlan: planId as any,
+      nextPlan: null,
+      planStartDate: now,
+      planExpiryDate: planExpiry,
+      planRenewalReminderSentAt: null,
       credits: plan.credits,
       maxCredits: plan.maxCredits,
       maxInboxes: plan.maxInboxes,
       dailyRefill: plan.dailyRefill,
-      updatedAt: new Date(),
+      updatedAt: now,
     }).where(eq(usersTable.id, userId));
 
     await tx.insert(creditTransactionsTable).values({
@@ -124,7 +147,7 @@ async function applySubscription(userId: number, planId: string, sessionId: stri
         planId,
         status: "active",
         stripeSubscriptionId: stripeSubscriptionId || existingSub[0].stripeSubscriptionId,
-        currentPeriodEnd: currentPeriodEnd || existingSub[0].currentPeriodEnd,
+        currentPeriodEnd: planExpiry,
         updatedAt: new Date(),
       }).where(eq(subscriptionsTable.userId, userId));
     } else {
@@ -133,7 +156,7 @@ async function applySubscription(userId: number, planId: string, sessionId: stri
         planId,
         status: "active",
         stripeSubscriptionId: stripeSubscriptionId || null,
-        currentPeriodEnd: currentPeriodEnd || null,
+        currentPeriodEnd: planExpiry,
       });
     }
   });
@@ -195,6 +218,12 @@ router.post("/checkout", requireAuth, async (req, res) => {
       const plan = PLANS.find(p => p.id === planId);
       if (!plan || !plan.stripePriceId) {
         res.json({ url: "/credits?error=plan_not_configured" }); return;
+      }
+
+      // Prevent downgrades to a lower plan while the current higher plan is still active.
+      if (comparePlans(planId, user.currentPlan) < 0 && isPlanActive(user)) {
+        res.status(400).json({ error: "You cannot downgrade while your current plan is active. You can schedule a downgrade for when it expires, or wait until the current plan ends." });
+        return;
       }
 
       const session = await stripe.checkout.sessions.create({

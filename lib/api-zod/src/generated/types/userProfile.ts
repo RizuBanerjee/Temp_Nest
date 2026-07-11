@@ -5,6 +5,8 @@
  * TempNest API - Temporary Email Platform
  * OpenAPI spec version: 0.1.0
  */
+import type { UserProfileCurrentPlan } from './userProfileCurrentPlan';
+import type { UserProfileNextPlan } from './userProfileNextPlan';
 import type { UserProfilePlan } from './userProfilePlan';
 import type { UserProfileStatus } from './userProfileStatus';
 
@@ -14,6 +16,14 @@ export interface UserProfile {
   email: string;
   name: string;
   plan: UserProfilePlan;
+  currentPlan: UserProfileCurrentPlan;
+  /** @nullable */
+  nextPlan?: UserProfileNextPlan;
+  /** @nullable */
+  planStartDate?: string | null;
+  /** @nullable */
+  planExpiryDate?: string | null;
+  planRenewalReminder?: boolean;
   credits: number;
   maxCredits?: number;
   dailyRefill?: number;

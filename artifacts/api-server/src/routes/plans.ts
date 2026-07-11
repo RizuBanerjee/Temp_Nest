@@ -83,6 +83,22 @@ const PLANS: PlanConfig[] = [
   },
 ];
 
+export const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, business: 2 };
+
+export function comparePlans(a: string, b: string): number {
+  return (PLAN_RANK[a] ?? 0) - (PLAN_RANK[b] ?? 0);
+}
+
+export function isHigherPlan(a: string, b: string): boolean {
+  return comparePlans(a, b) > 0;
+}
+
+export function isPlanActive(user: { currentPlan: string; planExpiryDate: Date | null }): boolean {
+  if (user.currentPlan === "free") return true;
+  if (!user.planExpiryDate) return false;
+  return user.planExpiryDate.getTime() > Date.now();
+}
+
 const CREDIT_PACKS = [
   { id: "pack_500", name: "Starter Pack", credits: 500, price: 499, currency: "usd", stripePriceId: process.env.STRIPE_PACK_500_PRICE_ID || null },
   { id: "pack_1200", name: "Value Pack", credits: 1200, price: 999, currency: "usd", stripePriceId: process.env.STRIPE_PACK_1200_PRICE_ID || null },

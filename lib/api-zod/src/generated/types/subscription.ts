@@ -10,8 +10,16 @@ import type { SubscriptionStatus } from './subscriptionStatus';
 export interface Subscription {
   planId: string;
   planName: string;
+  /** @nullable */
+  nextPlanId?: string | null;
+  /** @nullable */
+  nextPlanName?: string | null;
   status: SubscriptionStatus;
   /** @nullable */
   currentPeriodEnd: string | null;
+  /** @nullable */
+  planStartDate: string | null;
+  /** @nullable */
+  planExpiryDate: string | null;
   cancelAtPeriodEnd?: boolean;
 }

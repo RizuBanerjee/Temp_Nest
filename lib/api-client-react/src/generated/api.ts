@@ -44,6 +44,8 @@ import type {
   OtpExtraction,
   OtpRecord,
   Plan,
+  ScheduleDowngrade200,
+  ScheduleDowngradeInput,
   Subscription,
   UsageAnalytics,
   UserProfile,
@@ -1487,6 +1489,77 @@ export function useGetCurrentSubscription<TData = Awaited<ReturnType<typeof getC
 
 
 
+
+export const getScheduleDowngradeUrl = () => {
+
+
+
+
+  return `/api/subscriptions/schedule-downgrade`
+}
+
+/**
+ * @summary Schedule a downgrade to a lower plan for the next billing period
+ */
+export const scheduleDowngrade = async (scheduleDowngradeInput: ScheduleDowngradeInput, options?: RequestInit): Promise<ScheduleDowngrade200> => {
+
+  return customFetch<ScheduleDowngrade200>(getScheduleDowngradeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      scheduleDowngradeInput,)
+  }
+);}
+
+
+
+
+export const getScheduleDowngradeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleDowngrade>>, TError,{data: BodyType<ScheduleDowngradeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scheduleDowngrade>>, TError,{data: BodyType<ScheduleDowngradeInput>}, TContext> => {
+
+const mutationKey = ['scheduleDowngrade'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scheduleDowngrade>>, {data: BodyType<ScheduleDowngradeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  scheduleDowngrade(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScheduleDowngradeMutationResult = NonNullable<Awaited<ReturnType<typeof scheduleDowngrade>>>
+    export type ScheduleDowngradeMutationBody = BodyType<ScheduleDowngradeInput>
+    export type ScheduleDowngradeMutationError = ErrorType<void>
+
+    /**
+ * @summary Schedule a downgrade to a lower plan for the next billing period
+ */
+export const useScheduleDowngrade = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scheduleDowngrade>>, TError,{data: BodyType<ScheduleDowngradeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scheduleDowngrade>>,
+        TError,
+        {data: BodyType<ScheduleDowngradeInput>},
+        TContext
+      > => {
+      return useMutation(getScheduleDowngradeMutationOptions(options));
+    }
 
 export const getCreateCheckoutSessionUrl = () => {
 

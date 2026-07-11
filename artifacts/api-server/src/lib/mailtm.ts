@@ -90,17 +90,16 @@ export function extractOtp(text: string): string | null {
   ];
   for (const pattern of patterns) {
     const matches = [...text.matchAll(pattern)];
-    // Find first match that looks like an OTP context
+    // Only return a code when surrounding text contains OTP-related context.
+    // Without this guard, any 4-8 digit number (years, prices, IDs) is returned as a false OTP.
     for (const match of matches) {
       const code = match[1];
       const idx = match.index ?? 0;
       const context = text.substring(Math.max(0, idx - 40), idx + code.length + 40).toLowerCase();
-      if (context.match(/otp|code|verify|verif|confirm|pin|password|token|auth/)) {
+      if (context.match(/otp|code|verify|verif|confirm|pin|password|token|auth|verification|authentication|2fa|two.factor|one.time/)) {
         return code;
       }
     }
-    // Fallback: return first match if no context found
-    if (matches.length > 0) return matches[0][1];
   }
   return null;
 }

@@ -3,6 +3,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { db, usersTable, creditTransactionsTable, inboxesTable } from "@workspace/db";
 import { eq, count } from "drizzle-orm";
 import { requireAuth, getOrCreateUser } from "../lib/auth";
+import { PLANS } from "./plans";
 
 const router = Router();
 
@@ -25,7 +26,7 @@ router.get("/", requireAuth, async (req, res) => {
       }
     }
 
-    const user = await getOrCreateUser(clerkId, email, name);
+    let user = await getOrCreateUser(clerkId, email, name);
 
     // If the DB email is missing/placeholder and we now have a real one, update it.
     // The auth helper already resolves duplicates, but this keeps the DB email current
@@ -45,11 +46,53 @@ router.get("/", requireAuth, async (req, res) => {
       }
     }
 
+    const now = new Date();
+    let currentPlan = user.currentPlan;
+    let nextPlan = user.nextPlan;
+    let planStartDate = user.planStartDate;
+    let planExpiryDate = user.planExpiryDate;
+    let planRenewalReminder = false;
+
+    // Apply any scheduled downgrade (or free fallback) once the current paid plan expires.
+    if (planExpiryDate && planExpiryDate.getTime() <= now.getTime()) {
+      const fallbackPlan = nextPlan || "free";
+      const planConfig = PLANS.find(p => p.id === fallbackPlan) || PLANS[0];
+      const [updated] = await db.update(usersTable).set({
+        plan: fallbackPlan as any,
+        currentPlan: fallbackPlan as any,
+        nextPlan: null,
+        planStartDate: now,
+        planExpiryDate: null,
+        planRenewalReminderSentAt: null,
+        credits: planConfig.credits,
+        maxCredits: planConfig.maxCredits,
+        maxInboxes: planConfig.maxInboxes,
+        dailyRefill: planConfig.dailyRefill,
+        updatedAt: now,
+      }).where(eq(usersTable.id, user.id)).returning();
+      if (updated) {
+        user = updated;
+        currentPlan = updated.currentPlan;
+        nextPlan = updated.nextPlan;
+        planStartDate = updated.planStartDate;
+        planExpiryDate = updated.planExpiryDate;
+      }
+    } else if (planExpiryDate) {
+      // In-app reminder once per week when the paid plan is about to expire.
+      const daysUntilExpiry = (planExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+      const reminderThreshold = 7;
+      const reminderAlreadySent = user.planRenewalReminderSentAt &&
+        (now.getTime() - user.planRenewalReminderSentAt.getTime()) < (7 * 24 * 60 * 60 * 1000);
+      if (daysUntilExpiry <= reminderThreshold && !reminderAlreadySent) {
+        planRenewalReminder = true;
+        await db.update(usersTable).set({ planRenewalReminderSentAt: now }).where(eq(usersTable.id, user.id));
+      }
+    }
+
     // Daily credit refill logic:
     // - Use lastRefillAt if set; fall back to createdAt for existing users without it.
     // - This prevents new users from getting an immediate refill (their lastRefillAt is set at creation).
     // - Old users with null lastRefillAt will refill once createdAt is 24h+ in the past.
-    const now = new Date();
     const refillBasis = user.lastRefillAt || user.createdAt;
     const hoursSince = (now.getTime() - refillBasis.getTime()) / (1000 * 60 * 60);
     const shouldRefill = hoursSince >= 24;
@@ -78,7 +121,12 @@ router.get("/", requireAuth, async (req, res) => {
       clerkId: user.clerkId,
       email: user.email,
       name: user.name,
-      plan: user.plan,
+      plan: currentPlan,
+      currentPlan,
+      nextPlan,
+      planStartDate: planStartDate?.toISOString() ?? null,
+      planExpiryDate: planExpiryDate?.toISOString() ?? null,
+      planRenewalReminder,
       credits: user.credits,
       maxCredits: user.maxCredits,
       dailyRefill: user.dailyRefill,
@@ -115,7 +163,12 @@ router.patch("/", requireAuth, async (req, res) => {
       clerkId: user.clerkId,
       email: user.email,
       name: user.name,
-      plan: user.plan,
+      plan: user.currentPlan,
+      currentPlan: user.currentPlan,
+      nextPlan: user.nextPlan,
+      planStartDate: user.planStartDate?.toISOString() ?? null,
+      planExpiryDate: user.planExpiryDate?.toISOString() ?? null,
+      planRenewalReminder: false,
       credits: user.credits,
       maxCredits: user.maxCredits,
       dailyRefill: user.dailyRefill,

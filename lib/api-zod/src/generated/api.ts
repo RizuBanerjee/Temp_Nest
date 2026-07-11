@@ -25,6 +25,11 @@ export const GetMeResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "plan": zod.enum(['free', 'pro', 'business']),
+  "currentPlan": zod.enum(['free', 'pro', 'business']),
+  "nextPlan": zod.union([zod.literal('free'),zod.literal('pro'),zod.literal('business'),zod.literal(null)]).nullish(),
+  "planStartDate": zod.string().nullish(),
+  "planExpiryDate": zod.string().nullish(),
+  "planRenewalReminder": zod.boolean().optional(),
   "credits": zod.number(),
   "maxCredits": zod.number().optional(),
   "dailyRefill": zod.number().optional(),
@@ -53,6 +58,11 @@ export const UpdateMeResponse = zod.object({
   "email": zod.string(),
   "name": zod.string(),
   "plan": zod.enum(['free', 'pro', 'business']),
+  "currentPlan": zod.enum(['free', 'pro', 'business']),
+  "nextPlan": zod.union([zod.literal('free'),zod.literal('pro'),zod.literal('business'),zod.literal(null)]).nullish(),
+  "planStartDate": zod.string().nullish(),
+  "planExpiryDate": zod.string().nullish(),
+  "planRenewalReminder": zod.boolean().optional(),
   "credits": zod.number(),
   "maxCredits": zod.number().optional(),
   "dailyRefill": zod.number().optional(),
@@ -335,9 +345,28 @@ export const ListPlansResponse = zod.array(ListPlansResponseItem)
 export const GetCurrentSubscriptionResponse = zod.object({
   "planId": zod.string(),
   "planName": zod.string(),
+  "nextPlanId": zod.string().nullish(),
+  "nextPlanName": zod.string().nullish(),
   "status": zod.enum(['active', 'cancelled', 'past_due', 'free']),
   "currentPeriodEnd": zod.string().nullable(),
+  "planStartDate": zod.string().nullable(),
+  "planExpiryDate": zod.string().nullable(),
   "cancelAtPeriodEnd": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Schedule a downgrade to a lower plan for the next billing period
+ */
+export const ScheduleDowngradeBody = zod.object({
+  "planId": zod.enum(['free', 'pro', 'business'])
+})
+
+export const ScheduleDowngradeResponse = zod.object({
+  "success": zod.boolean(),
+  "currentPlanId": zod.string(),
+  "nextPlanId": zod.string(),
+  "planExpiryDate": zod.string().nullable()
 })
 
 

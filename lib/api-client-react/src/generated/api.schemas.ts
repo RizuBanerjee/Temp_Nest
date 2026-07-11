@@ -18,6 +18,27 @@ export const UserProfilePlan = {
   business: 'business',
 } as const;
 
+export type UserProfileCurrentPlan = typeof UserProfileCurrentPlan[keyof typeof UserProfileCurrentPlan];
+
+
+export const UserProfileCurrentPlan = {
+  free: 'free',
+  pro: 'pro',
+  business: 'business',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UserProfileNextPlan = typeof UserProfileNextPlan[keyof typeof UserProfileNextPlan] | null;
+
+
+export const UserProfileNextPlan = {
+  free: 'free',
+  pro: 'pro',
+  business: 'business',
+} as const;
+
 export type UserProfileStatus = typeof UserProfileStatus[keyof typeof UserProfileStatus];
 
 
@@ -33,6 +54,14 @@ export interface UserProfile {
   email: string;
   name: string;
   plan: UserProfilePlan;
+  currentPlan: UserProfileCurrentPlan;
+  /** @nullable */
+  nextPlan?: UserProfileNextPlan;
+  /** @nullable */
+  planStartDate?: string | null;
+  /** @nullable */
+  planExpiryDate?: string | null;
+  planRenewalReminder?: boolean;
   credits: number;
   maxCredits?: number;
   dailyRefill?: number;
@@ -198,10 +227,31 @@ export const SubscriptionStatus = {
 export interface Subscription {
   planId: string;
   planName: string;
+  /** @nullable */
+  nextPlanId?: string | null;
+  /** @nullable */
+  nextPlanName?: string | null;
   status: SubscriptionStatus;
   /** @nullable */
   currentPeriodEnd: string | null;
+  /** @nullable */
+  planStartDate: string | null;
+  /** @nullable */
+  planExpiryDate: string | null;
   cancelAtPeriodEnd?: boolean;
+}
+
+export type ScheduleDowngradeInputPlanId = typeof ScheduleDowngradeInputPlanId[keyof typeof ScheduleDowngradeInputPlanId];
+
+
+export const ScheduleDowngradeInputPlanId = {
+  free: 'free',
+  pro: 'pro',
+  business: 'business',
+} as const;
+
+export interface ScheduleDowngradeInput {
+  planId: ScheduleDowngradeInputPlanId;
 }
 
 export type CheckoutInputType = typeof CheckoutInputType[keyof typeof CheckoutInputType];
@@ -336,6 +386,14 @@ export interface AdminRevenue {
   monthly: MonthlyRevenue[];
   planDistribution?: PlanDistribution[];
 }
+
+export type ScheduleDowngrade200 = {
+  success: boolean;
+  currentPlanId: string;
+  nextPlanId: string;
+  /** @nullable */
+  planExpiryDate: string | null;
+};
 
 export type ListAdminUsersParams = {
 search?: string;

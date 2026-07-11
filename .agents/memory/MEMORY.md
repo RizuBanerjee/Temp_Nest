@@ -4,3 +4,4 @@
 - [Nullable email for Clerk users](nullable-email-clerk.md) — `users.email` should be nullable; never store Clerk ids or placeholder strings in the email column
 - [Clerk account merge order](clerk-merge-order.md) — when merging a placeholder session into a canonical email row, delete the duplicate session row *before* updating the canonical row's `clerk_id`, or `users_clerk_id_unique` triggers a 500
 - [TS composite declarations](ts-composite-declarations.md) — shared workspace packages are composite and emit declarations to `dist`; after changing a schema, rebuild the referenced package so dependent typechecks see the new types
+- [Plan upgrade/downgrade scheduling](plan-scheduling.md) — upgrades activate immediately and reset credits/limits; active downgrades are blocked at checkout and scheduled in `next_plan`, applied by `/api/me` when `plan_expiry_date` passes

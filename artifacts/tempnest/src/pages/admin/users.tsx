@@ -110,7 +110,7 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge className={`text-[10px] ${planColors[user.plan]}`}>{user.plan}</Badge>
+                      <Badge className={`text-[10px] ${planColors[user.currentPlan]}`}>{user.currentPlan}</Badge>
                     </td>
                     <td className="px-4 py-3 font-mono">{user.credits}</td>
                     <td className="px-4 py-3 font-mono">{user.inboxCount}</td>

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useSearch, Link } from "wouter";
-import { useGetCredits, useListCreditTransactions, useCreateCheckoutSession, useGetMe, useListPlans } from "@workspace/api-client-react";
+import { useGetCredits, useListCreditTransactions, useCreateCheckoutSession, useGetMe, useListPlans, useScheduleDowngrade } from "@workspace/api-client-react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Zap, TrendingUp, TrendingDown, Package, Star, Info, Check, X, ArrowRight, Crown, AlertCircle } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Package, Star, Info, Check, X, ArrowRight, Crown, AlertCircle, Calendar, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -162,15 +162,37 @@ export default function Credits() {
     }
   }
 
+  const scheduleDowngrade = useScheduleDowngrade();
+
+  async function handleScheduleDowngrade(planId: string) {
+    try {
+      await scheduleDowngrade.mutateAsync({ data: { planId: planId as any } });
+      toast.success(`Downgrade to ${planId} scheduled for when your current plan expires.`);
+      queryClient.invalidateQueries();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to schedule downgrade");
+    }
+  }
+
+  const PLAN_RANK: Record<string, number> = { free: 0, pro: 1, business: 2 };
+  function comparePlans(a: string, b: string): number {
+    return (PLAN_RANK[a] ?? 0) - (PLAN_RANK[b] ?? 0);
+  }
+  function isPlanActive(): boolean {
+    if (user?.currentPlan === "free") return true;
+    if (!user?.planExpiryDate) return false;
+    return new Date(user.planExpiryDate).getTime() > Date.now();
+  }
+  const isCurrentPlan = (planId: string) => user?.currentPlan === planId;
+  const isLowerPlan = (planId: string) => comparePlans(planId, user?.currentPlan || "free") < 0;
+  const isHigherPlan = (planId: string) => comparePlans(planId, user?.currentPlan || "free") > 0;
+
   const txTypeIcon = (type: string) => {
     if (type === "debit") return <TrendingDown size={14} className="text-red-400" />;
     return <TrendingUp size={14} className="text-emerald-400" />;
   };
 
   const txTypeColor = (type: string) => type === "debit" ? "text-red-400" : "text-emerald-400";
-
-  const currentPlan = plans?.find(p => p.id === user?.plan);
-  const isCurrentPlan = (planId: string) => user?.plan === planId;
 
   return (
     <MainLayout>
@@ -229,12 +251,45 @@ export default function Credits() {
                 <p className="text-xs text-muted-foreground mb-1">Last Refill</p>
                 <p className="text-sm">{wallet?.lastRefillAt ? new Date(wallet.lastRefillAt).toLocaleDateString() : "Today"}</p>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto text-right">
                 <p className="text-xs text-muted-foreground mb-1">Current Plan</p>
-                <p className="text-sm font-medium capitalize">{user?.plan ?? "Free"}</p>
+                <p className="text-sm font-medium capitalize">{user?.currentPlan ?? "Free"}</p>
+                {user?.planExpiryDate && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Expires {new Date(user.planExpiryDate).toLocaleString()}
+                  </p>
+                )}
               </div>
             </div>
           </Card>
+
+          {user?.planRenewalReminder && user?.planExpiryDate && (
+            <Card className="p-4 border-amber-500/30 bg-amber-500/10">
+              <div className="flex items-start gap-3 text-sm text-amber-400">
+                <Clock size={18} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">Your plan expires soon</p>
+                  <p className="text-amber-400/80">
+                    Your {user.currentPlan} plan expires on {new Date(user.planExpiryDate).toLocaleString()}. Subscribe again to keep your premium features.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {user?.nextPlan && (
+            <Card className="p-4 border-primary/30 bg-primary/5">
+              <div className="flex items-start gap-3 text-sm">
+                <Calendar size={18} className="shrink-0 mt-0.5 text-primary" />
+                <div>
+                  <p className="font-medium">Downgrade scheduled</p>
+                  <p className="text-muted-foreground">
+                    Your plan will change to <span className="capitalize font-medium">{user.nextPlan}</span> when your current plan expires on {user.planExpiryDate ? new Date(user.planExpiryDate).toLocaleString() : "the next billing date"}.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Upgrade Plan */}
           <Card className="p-6 bg-card border-border/60 space-y-4">
@@ -242,32 +297,54 @@ export default function Credits() {
               <Crown size={18} className="text-primary" />
               <span className="font-semibold">Upgrade Plan</span>
             </div>
-            <p className="text-sm text-muted-foreground">Upgrade to get more inboxes, credits, and premium features.</p>
+            <p className="text-sm text-muted-foreground">
+              Upgrade to get more inboxes, credits, and premium features. Higher plans activate immediately; downgrades apply at the end of your current billing period.
+            </p>
             <div className="grid sm:grid-cols-3 gap-3">
-              {plans?.map(plan => (
-                <div key={plan.id} className={`rounded-xl border p-4 ${plan.id === "pro" ? "border-primary/40 bg-primary/5" : "border-border/60 bg-card/50"}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold">{plan.name}</span>
-                    {isCurrentPlan(plan.id) && <Badge variant="outline" className="text-emerald-400 border-emerald-400/30">Current</Badge>}
+              {plans?.map(plan => {
+                const current = isCurrentPlan(plan.id);
+                const lower = isLowerPlan(plan.id);
+                const higher = isHigherPlan(plan.id);
+                const active = isPlanActive();
+                const canSubscribe = higher || !active;
+                const canScheduleDowngrade = lower && active && !user?.nextPlan;
+
+                return (
+                  <div key={plan.id} className={`rounded-xl border p-4 ${plan.id === "pro" ? "border-primary/40 bg-primary/5" : "border-border/60 bg-card/50"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold">{plan.name}</span>
+                      {current && <Badge variant="outline" className="text-emerald-400 border-emerald-400/30">Current</Badge>}
+                      {user?.nextPlan === plan.id && <Badge variant="outline" className="text-primary border-primary/30">Scheduled</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      {plan.maxInboxes === -1 ? "Unlimited inboxes" : `${plan.maxInboxes} active inboxes`} · {plan.credits.toLocaleString()} credits
+                    </p>
+                    <div className="flex items-end gap-1 mb-3">
+                      <span className="text-xl font-bold">${(plan.price / 100).toFixed(plan.price % 100 === 0 ? 0 : 2)}</span>
+                      <span className="text-xs text-muted-foreground mb-1">{plan.billingPeriod}</span>
+                    </div>
+                    {plan.id === "free" ? (
+                      <Button variant="outline" className="w-full" disabled={current} onClick={() => window.location.href = "/pricing"}>
+                        {current ? "Current Plan" : "View Plans"}
+                      </Button>
+                    ) : (
+                      <Button
+                        className="w-full"
+                        variant={lower ? "outline" : "default"}
+                        disabled={checkout.isPending || scheduleDowngrade.isPending || current || (!canSubscribe && !canScheduleDowngrade)}
+                        onClick={() => canScheduleDowngrade ? handleScheduleDowngrade(plan.id) : handleSubscribe(plan.id)}
+                      >
+                        {current ? "Current Plan" : user?.nextPlan === plan.id ? "Scheduled" : canScheduleDowngrade ? "Schedule Downgrade" : `Subscribe to ${plan.name}`}
+                      </Button>
+                    )}
+                    {lower && active && (
+                      <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                        Available after current plan expires
+                      </p>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    {plan.maxInboxes === -1 ? "Unlimited inboxes" : `${plan.maxInboxes} active inboxes`} · {plan.credits.toLocaleString()} credits
-                  </p>
-                  <div className="flex items-end gap-1 mb-3">
-                    <span className="text-xl font-bold">${(plan.price / 100).toFixed(plan.price % 100 === 0 ? 0 : 2)}</span>
-                    <span className="text-xs text-muted-foreground mb-1">{plan.billingPeriod}</span>
-                  </div>
-                  {plan.id === "free" ? (
-                    <Button variant="outline" className="w-full" disabled={isCurrentPlan(plan.id)} onClick={() => window.location.href = "/pricing"}>
-                      {isCurrentPlan(plan.id) ? "Current Plan" : "View Plans"}
-                    </Button>
-                  ) : (
-                    <Button className="w-full" disabled={checkout.isPending || isCurrentPlan(plan.id)} onClick={() => handleSubscribe(plan.id)}>
-                      {isCurrentPlan(plan.id) ? "Current Plan" : `Subscribe to ${plan.name}`}
-                    </Button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
 
