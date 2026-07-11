@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "vkD8qOPmQfYxOfMw3RQhR"
+uri = "file://screenshots/dev-signin.jpg"
+type = "image"
+title = "Dev preview sign-in page loads"
