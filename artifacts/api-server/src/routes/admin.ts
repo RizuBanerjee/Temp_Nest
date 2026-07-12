@@ -111,7 +111,7 @@ router.get("/users", requireAdmin, async (req, res) => {
           firebaseUid: u.firebaseUid,
           email: u.email,
           name: u.name,
-          plan: u.currentPlan,
+          currentPlan: u.currentPlan,
           credits: u.credits,
           status: u.status,
           isAdmin: u.isAdmin,
@@ -237,6 +237,39 @@ router.get("/inboxes", requireAdmin, async (req, res) => {
     });
   } catch (err) {
     req.log.error({ err }, "Failed to list admin inboxes");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/inboxes/:inboxId", requireAdmin, async (req, res) => {
+  try {
+    const inboxId = req.params.inboxId as string;
+    const { isActive } = req.body;
+    const updates: Partial<typeof inboxesTable.$inferInsert> = {};
+    if (typeof isActive === "boolean") updates.isActive = isActive;
+    const [updated] = await db
+      .update(inboxesTable)
+      .set(updates)
+      .where(eq(inboxesTable.id, inboxId))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Inbox not found" });
+      return;
+    }
+    res.json({ id: updated.id, isActive: updated.isActive });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update admin inbox");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/inboxes/:inboxId", requireAdmin, async (req, res) => {
+  try {
+    const inboxId = req.params.inboxId as string;
+    await db.delete(inboxesTable).where(eq(inboxesTable.id, inboxId));
+    res.status(204).end();
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete admin inbox");
     res.status(500).json({ error: "Internal server error" });
   }
 });

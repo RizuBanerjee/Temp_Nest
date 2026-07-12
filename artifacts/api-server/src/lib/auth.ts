@@ -65,6 +65,48 @@ export const requireAuth = async (
   }
 };
 
+export const requireActiveUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const token = extractBearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    const decoded = await firebaseAuth.verifyIdToken(token);
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.firebaseUid, decoded.uid))
+      .limit(1);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (user.status !== "active") {
+      res
+        .status(403)
+        .json({
+          error: "Account suspended. Please contact support.",
+          code: "ACCOUNT_SUSPENDED",
+        });
+      return;
+    }
+    (req as any).firebaseUid = decoded.uid;
+    (req as any).firebaseEmail = decoded.email || "";
+    (req as any).firebaseName = decoded.name || "";
+    (req as any).dbUser = user;
+    next();
+  } catch (err) {
+    req.log?.warn({ err }, "Invalid Firebase ID token");
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+};
+
 export const requireAdmin = async (
   req: Request,
   res: Response,
@@ -137,22 +179,15 @@ export const getOrCreateUser = async (
           return emailOwner;
         }
         // No other owner: update this row with the real email.
+        // Keep the existing display name; it is managed by the user in Settings, not synced from Firebase.
         await db
           .update(usersTable)
           .set({
             email: realEmail,
-            name: name || currentUser.name,
             updatedAt: new Date(),
           })
           .where(eq(usersTable.id, currentUser.id));
         currentUser.email = realEmail;
-        if (name) currentUser.name = name;
-      } else if (name && name !== currentUser.name) {
-        await db
-          .update(usersTable)
-          .set({ name, updatedAt: new Date() })
-          .where(eq(usersTable.id, currentUser.id));
-        currentUser.name = name;
       }
     }
     return currentUser;

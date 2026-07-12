@@ -1,360 +1,183 @@
 import { useState } from "react";
 import {
-  useListInboxes,
-  useCreateInbox,
-  useGetMe,
-  getListInboxesQueryKey,
+  useListAdminInboxes,
+  getListAdminInboxesQueryKey,
 } from "@workspace/api-client-react";
 import { MainLayout } from "@/components/layout/main-layout";
-import { BackButton } from "@/components/back-button";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Link, useLocation } from "wouter";
-import {
-  Plus,
-  Inbox,
-  Mail,
-  Copy,
-  Check,
-  Zap,
-  Shield,
-  Clock,
-  Lock,
-} from "lucide-react";
+import { apiFetch } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Trash2, RefreshCw, Power, PowerOff } from "lucide-react";
 
-function InboxCard({ inbox }: { inbox: any }) {
-  const [copied, setCopied] = useState(false);
+export default function AdminInboxes() {
+  const { data, isLoading } = useListAdminInboxes({ page: 1 });
+  const queryClient = useQueryClient();
+  const [workingId, setWorkingId] = useState<string | null>(null);
 
-  function copyAddress(e: React.MouseEvent) {
-    e.preventDefault();
-    navigator.clipboard.writeText(inbox.address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast.success("Address copied");
+  async function refresh() {
+    await queryClient.invalidateQueries({
+      queryKey: getListAdminInboxesQueryKey(),
+    });
+    toast.success("Refreshed inboxes");
   }
 
-  const expiresIn = inbox.expiresAt
-    ? Math.max(
-        0,
-        Math.floor(
-          (new Date(inbox.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60),
-        ),
-      )
-    : null;
-
-  return (
-    <Link href={`/inboxes/${inbox.id}`}>
-      <Card className="p-5 bg-card border-border/60 hover:border-primary/40 transition-all cursor-pointer group hover:shadow-sm">
-        <div className="flex items-start justify-between mb-3 gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="font-mono text-sm text-foreground truncate">
-                {inbox.address}
-              </span>
-              {inbox.isPriority && (
-                <Badge className="text-[10px] px-1.5 bg-amber-500/20 text-amber-400 border-amber-500/20">
-                  <Zap size={9} className="mr-0.5" /> Priority
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock size={10} />
-              Created {new Date(inbox.createdAt).toLocaleDateString()}
-            </p>
-          </div>
-          <button
-            onClick={copyAddress}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-muted"
-          >
-            {copied ? (
-              <Check size={14} className="text-emerald-500" />
-            ) : (
-              <Copy size={14} className="text-muted-foreground" />
-            )}
-          </button>
-        </div>
-
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <Mail size={13} />
-            <span className="text-xs">{inbox.emailCount} emails</span>
-          </div>
-          {inbox.unreadCount > 0 && (
-            <Badge className="text-[10px] px-2 bg-primary/10 text-primary border-primary/20">
-              {inbox.unreadCount} new
-            </Badge>
-          )}
-          {expiresIn !== null && expiresIn < 24 && (
-            <Badge className="text-[10px] px-2 bg-amber-500/10 text-amber-400 border-amber-500/20">
-              Expires in {expiresIn}h
-            </Badge>
-          )}
-          <div className="ml-auto flex items-center gap-1.5">
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${inbox.isActive ? "bg-emerald-500" : "bg-muted-foreground"}`}
-            />
-            <span className="text-xs text-muted-foreground">
-              {inbox.isActive ? "Active" : "Inactive"}
-            </span>
-          </div>
-        </div>
-      </Card>
-    </Link>
-  );
-}
-
-export default function Inboxes() {
-  const { data: user } = useGetMe();
-  const { data: inboxes, isLoading } = useListInboxes();
-  const createInbox = useCreateInbox();
-  const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
-  const [open, setOpen] = useState(false);
-  const [customName, setCustomName] = useState("");
-  const [isPriority, setIsPriority] = useState(false);
-
-  const canUsePremium = user?.currentPlan !== "free";
-  // Free users cannot use premium options; reset them if somehow enabled.
-  const effectiveCustomName = canUsePremium ? customName : "";
-  const effectiveIsPriority = canUsePremium ? isPriority : false;
-  const creditCost =
-    2 + (effectiveCustomName.trim() ? 5 : 0) + (effectiveIsPriority ? 10 : 0);
-  const atInboxLimit =
-    user?.maxInboxes !== -1 && (inboxes?.length ?? 0) >= user?.maxInboxes!;
-  const insufficientCredits = (user?.credits ?? 0) < creditCost;
-
-  async function handleCreate() {
+  async function handleDelete(id: string) {
+    if (!confirm("Permanently delete this inbox? This cannot be undone."))
+      return;
+    setWorkingId(id);
     try {
-      await createInbox.mutateAsync({
-        data: {
-          customName: effectiveCustomName.trim() || null,
-          isPriority: effectiveIsPriority,
-        },
+      const res = await apiFetch(`/api/admin/inboxes/${id}`, {
+        method: "DELETE",
       });
-      queryClient.invalidateQueries({ queryKey: getListInboxesQueryKey() });
-      setOpen(false);
-      setCustomName("");
-      setIsPriority(false);
-      toast.success("Inbox created! Check your new address.");
-    } catch (err: any) {
-      const errorCode = err?.response?.data?.code;
-      const errorMessage =
-        err?.response?.data?.error || "Failed to create inbox";
-      if (
-        errorCode === "UPGRADE_REQUIRED" ||
-        errorMessage.toLowerCase().includes("limit") ||
-        errorMessage.toLowerCase().includes("credits")
-      ) {
-        toast.error(`${errorMessage} — upgrade your plan to unlock more.`, {
-          action: { label: "Upgrade", onClick: () => setLocation("/pricing") },
-        });
-      } else {
-        toast.error(errorMessage);
-      }
+      if (!res.ok) throw new Error("Failed");
+      await queryClient.invalidateQueries({
+        queryKey: getListAdminInboxesQueryKey(),
+      });
+      toast.success("Inbox deleted");
+    } catch {
+      toast.error("Failed to delete inbox");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function handleToggle(id: string, nextActive: boolean) {
+    setWorkingId(id);
+    try {
+      const res = await apiFetch(`/api/admin/inboxes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      await queryClient.invalidateQueries({
+        queryKey: getListAdminInboxesQueryKey(),
+      });
+      toast.success(`Inbox ${nextActive ? "activated" : "deactivated"}`);
+    } catch {
+      toast.error("Failed to update inbox");
+    } finally {
+      setWorkingId(null);
     }
   }
 
   return (
     <MainLayout>
       <div className="flex-1 overflow-y-auto p-6 md:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className="flex items-center gap-3">
-            <BackButton />
-          </div>
-
+        <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Inboxes</h1>
+              <h1 className="text-2xl font-bold">Manage Inboxes</h1>
               <p className="text-muted-foreground text-sm mt-1">
-                {isLoading
-                  ? "Loading…"
-                  : `${inboxes?.length ?? 0} active ${inboxes?.length === 1 ? "inbox" : "inboxes"}${user?.maxInboxes === -1 ? " · Unlimited" : ` / ${user?.maxInboxes ?? 1} limit`}`}
+                {data?.total ?? 0} total inboxes
               </p>
             </div>
-            <Button onClick={() => setOpen(true)} className="gap-2">
-              <Plus size={16} /> New Inbox
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refresh}
+              className="gap-2"
+            >
+              <RefreshCw size={14} /> Refresh
             </Button>
           </div>
 
-          {/* What are inboxes? */}
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20 text-sm">
-            <Shield size={18} className="text-primary mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium text-foreground mb-0.5">
-                How inboxes work
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Each inbox is a real disposable email address (e.g.{" "}
-                <code className="font-mono bg-muted px-1 rounded">
-                  abc123@mail.tm
-                </code>
-                ). Share it anywhere you'd normally give your real email. Emails
-                arrive here in real-time. Costs 2 credits to create.
-              </p>
-            </div>
+          <div className="rounded-xl border border-border/60 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 border-b border-border/40">
+                <tr>
+                  {[
+                    "Address",
+                    "User",
+                    "Status",
+                    "Emails",
+                    "Created",
+                    "Actions",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading
+                  ? [...Array(8)].map((_, i) => (
+                      <tr key={i} className="border-b border-border/20">
+                        {[...Array(6)].map((_, j) => (
+                          <td key={j} className="px-4 py-3">
+                            <Skeleton className="h-4 w-full" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  : data?.inboxes?.map((inbox: any) => (
+                      <tr
+                        key={inbox.id}
+                        className="border-b border-border/20 hover:bg-muted/10 transition-colors"
+                      >
+                        <td className="px-4 py-3 font-mono text-xs">
+                          {inbox.address}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {inbox.userEmail}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            className={`text-[10px] ${inbox.isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}
+                          >
+                            {inbox.isActive ? "active" : "inactive"}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 font-mono">
+                          {inbox.emailCount}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {new Date(inbox.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() =>
+                                handleToggle(inbox.id, !inbox.isActive)
+                              }
+                              disabled={workingId === inbox.id}
+                              className={`p-1.5 rounded transition-colors ${
+                                inbox.isActive
+                                  ? "hover:bg-red-500/10 text-red-500"
+                                  : "hover:bg-emerald-500/10 text-emerald-500"
+                              }`}
+                              title={inbox.isActive ? "Deactivate" : "Activate"}
+                            >
+                              {inbox.isActive ? (
+                                <PowerOff size={14} />
+                              ) : (
+                                <Power size={14} />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDelete(inbox.id)}
+                              disabled={workingId === inbox.id}
+                              className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+              </tbody>
+            </table>
           </div>
-
-          {isLoading ? (
-            <div className="grid sm:grid-cols-2 gap-4">
-              {[...Array(4)].map((_, i) => (
-                <Skeleton key={i} className="h-28 rounded-xl" />
-              ))}
-            </div>
-          ) : !inboxes?.length ? (
-            <div className="text-center py-20 border border-dashed border-border rounded-2xl">
-              <Inbox
-                size={40}
-                className="mx-auto mb-4 text-muted-foreground/30"
-              />
-              <p className="text-lg font-semibold text-foreground mb-1">
-                No inboxes yet
-              </p>
-              <p className="text-muted-foreground text-sm mb-6 max-w-xs mx-auto">
-                Create your first temporary inbox to start receiving emails
-                without revealing your real address.
-              </p>
-              <Button onClick={() => setOpen(true)} className="gap-2">
-                <Plus size={16} /> Create your first inbox
-              </Button>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 gap-4">
-              {inboxes.map((inbox) => (
-                <InboxCard key={inbox.id} inbox={inbox} />
-              ))}
-            </div>
-          )}
         </div>
       </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-card border-border">
-          <DialogHeader>
-            <DialogTitle>Create New Inbox</DialogTitle>
-            <DialogDescription>
-              A new disposable email address will be created for you. Costs{" "}
-              <strong>{creditCost} credits</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {canUsePremium ? (
-              <>
-                <div className="space-y-2">
-                  <Label>
-                    Custom Name{" "}
-                    <span className="text-muted-foreground font-normal">
-                      (optional)
-                    </span>
-                  </Label>
-                  <Input
-                    placeholder="e.g. myalias → myalias@mail.tm"
-                    value={customName}
-                    onChange={(e) => setCustomName(e.target.value)}
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Leave empty for a random address. Custom names cost +5
-                    credits.
-                  </p>
-                </div>
-                <div
-                  className="flex items-start gap-3 p-3 rounded-lg border border-border/60 cursor-pointer"
-                  onClick={() => setIsPriority(!isPriority)}
-                >
-                  <Checkbox
-                    id="priority"
-                    checked={isPriority}
-                    onCheckedChange={(v) => setIsPriority(Boolean(v))}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <Label
-                      htmlFor="priority"
-                      className="cursor-pointer flex items-center gap-1.5 font-medium"
-                    >
-                      <Zap size={14} className="text-amber-400" />
-                      Priority Inbox{" "}
-                      <span className="text-muted-foreground font-normal">
-                        (+10 credits)
-                      </span>
-                    </Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Emails are checked more frequently for faster delivery.
-                    </p>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/10 text-sm">
-                <div className="flex items-start gap-2">
-                  <Lock size={14} className="text-amber-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium text-amber-400">
-                      Premium features locked
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Custom names and priority inboxes are available on Pro and
-                      Business plans.{" "}
-                      <button
-                        className="text-primary underline"
-                        onClick={() => {
-                          setOpen(false);
-                          setLocation("/pricing");
-                        }}
-                      >
-                        Upgrade
-                      </button>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg text-sm border border-primary/20">
-              <Zap size={14} className="text-primary" />
-              <span>
-                Total cost:{" "}
-                <strong className="text-foreground">
-                  {creditCost} credits
-                </strong>
-              </span>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={
-                createInbox.isPending || atInboxLimit || insufficientCredits
-              }
-            >
-              {createInbox.isPending
-                ? "Creating…"
-                : atInboxLimit
-                  ? "Inbox Limit Reached"
-                  : insufficientCredits
-                    ? "Insufficient Credits"
-                    : `Create Inbox (${creditCost} credits)`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </MainLayout>
   );
 }
