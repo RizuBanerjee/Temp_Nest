@@ -1,13 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import { clerkMiddleware } from "@clerk/express";
-import { publishableKeyFromHost } from "@clerk/shared/keys";
-import {
-  CLERK_PROXY_PATH,
-  clerkProxyMiddleware,
-  getClerkProxyHost,
-} from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -33,9 +26,6 @@ app.use(
   }),
 );
 
-// Clerk proxy must come before body parsers (streams raw bytes)
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-
 const allowedOrigins = [process.env.APP_URL, "http://localhost:5173"].filter(
   (o): o is string => Boolean(o),
 );
@@ -45,16 +35,6 @@ app.use(cors({ credentials: true, origin: allowedOrigins }));
 app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-    secretKey: process.env.CLERK_SECRET_KEY,
-  })),
-);
 
 app.use("/api", router);
 

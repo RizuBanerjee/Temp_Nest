@@ -41,7 +41,7 @@ export const UserProfileStatus = {
 
 export interface UserProfile {
   id: number;
-  clerkId: string;
+  firebaseUid: string;
   email: string;
   name: string;
   currentPlan: UserProfileCurrentPlan;
@@ -299,7 +299,7 @@ export interface AdminStats {
 
 export interface AdminUser {
   id: number;
-  clerkId: string;
+  firebaseUid: string;
   email: string;
   name: string;
   plan: string;

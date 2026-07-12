@@ -8,7 +8,7 @@
 
 export interface AdminUser {
   id: number;
-  clerkId: string;
+  firebaseUid: string;
   email: string;
   name: string;
   plan: string;

@@ -9,7 +9,6 @@ import {
 } from "@workspace/db";
 import { eq, ilike, or, count, desc, gte } from "drizzle-orm";
 import { requireAdmin, requireAuth } from "../lib/auth";
-import { getAuth, clerkClient } from "@clerk/express";
 
 const router = Router();
 
@@ -109,7 +108,7 @@ router.get("/users", requireAdmin, async (req, res) => {
           .where(eq(emailsTable.userId, u.id));
         return {
           id: u.id,
-          clerkId: u.clerkId,
+          firebaseUid: u.firebaseUid,
           email: u.email,
           name: u.name,
           plan: u.currentPlan,
@@ -165,7 +164,7 @@ router.patch("/users/:userId", requireAdmin, async (req, res) => {
 
     res.json({
       id: updated.id,
-      clerkId: updated.clerkId,
+      firebaseUid: updated.firebaseUid,
       email: updated.email,
       name: updated.name,
       plan: updated.currentPlan,

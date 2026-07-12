@@ -11,7 +11,7 @@ import type { UserProfileStatus } from './userProfileStatus';
 
 export interface UserProfile {
   id: number;
-  clerkId: string;
+  firebaseUid: string;
   email: string;
   name: string;
   currentPlan: UserProfileCurrentPlan;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/react";
+import { useAuth } from "@/lib/auth-context";
 import {
   useGetMe,
   useUpdateMe,
@@ -25,7 +25,7 @@ export default function Settings() {
   const updateMe = useUpdateMe();
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
-  const { user: clerkUser } = useUser();
+  const { user: firebaseUser } = useAuth();
   const [name, setName] = useState("");
   const [notifications, setNotifications] = useState({
     notifyNewEmail: true,
@@ -41,8 +41,7 @@ export default function Settings() {
     }
   }, [user?.name]);
 
-  const displayEmail =
-    clerkUser?.emailAddresses?.[0]?.emailAddress || user?.email || "";
+  const displayEmail = firebaseUser?.email || user?.email || "";
 
   useEffect(() => {
     if (user) {
@@ -143,8 +142,7 @@ export default function Settings() {
                     className="font-mono opacity-70"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Your email address cannot be changed here. Manage it through
-                    your Clerk account.
+                    Your email address is managed through your Firebase account.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -293,7 +291,7 @@ export default function Settings() {
                     To delete your account or manage authentication methods,
                     visit your{" "}
                     <span className="text-primary cursor-pointer">
-                      account settings
+                      Firebase account settings
                     </span>
                     .
                   </p>

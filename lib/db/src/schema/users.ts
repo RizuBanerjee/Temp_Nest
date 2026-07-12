@@ -19,7 +19,7 @@ export const userStatusEnum = pgEnum("user_status", [
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
-  clerkId: text("clerk_id").notNull().unique(),
+  firebaseUid: text("firebase_uid").notNull().unique(),
   email: text("email").unique(),
   name: text("name").notNull().default(""),
   currentPlan: planEnum("current_plan").notNull().default("free"),

@@ -2,7 +2,6 @@ import { Router } from "express";
 import { db, usersTable, inboxesTable, emailsTable, otpRecordsTable, creditTransactionsTable } from "@workspace/db";
 import { eq, and, count, desc } from "drizzle-orm";
 import { requireAuth, getOrCreateUser } from "../lib/auth";
-import { getAuth } from "@clerk/express";
 import {
   getDomains, createAccount, getToken, deleteAccount,
   getMessages, getMessage, generatePassword, generateUsername, extractOtp
@@ -12,9 +11,8 @@ const router = Router();
 
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId as string;
-    const auth = getAuth(req);
-    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", (auth?.sessionClaims?.fullName as string) || "");
+    const firebaseUid = (req as any).firebaseUid as string;
+    const user = await getOrCreateUser(firebaseUid, (req as any).firebaseEmail || "", (req as any).firebaseName || "");
 
     const inboxes = await db.select().from(inboxesTable)
       .where(and(eq(inboxesTable.userId, user.id), eq(inboxesTable.isActive, true)))
@@ -43,9 +41,8 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId as string;
-    const auth = getAuth(req);
-    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", (auth?.sessionClaims?.fullName as string) || "");
+    const firebaseUid = (req as any).firebaseUid as string;
+    const user = await getOrCreateUser(firebaseUid, (req as any).firebaseEmail || "", (req as any).firebaseName || "");
 
     if (user.status !== "active") { res.status(403).json({ error: "Account suspended" }); return; }
 
@@ -115,10 +112,9 @@ router.post("/", requireAuth, async (req, res) => {
 
 router.get("/:inboxId", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId as string;
+    const firebaseUid = (req as any).firebaseUid as string;
     const inboxId = req.params.inboxId as string;
-    const auth = getAuth(req);
-    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
+    const user = await getOrCreateUser(firebaseUid, (req as any).firebaseEmail || "", "");
 
     const [inbox] = await db.select().from(inboxesTable)
       .where(and(eq(inboxesTable.id, inboxId), eq(inboxesTable.userId, user.id)));
@@ -144,10 +140,9 @@ router.get("/:inboxId", requireAuth, async (req, res) => {
 
 router.delete("/:inboxId", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId as string;
+    const firebaseUid = (req as any).firebaseUid as string;
     const inboxId = req.params.inboxId as string;
-    const auth = getAuth(req);
-    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
+    const user = await getOrCreateUser(firebaseUid, (req as any).firebaseEmail || "", "");
 
     const [inbox] = await db.select().from(inboxesTable)
       .where(and(eq(inboxesTable.id, inboxId), eq(inboxesTable.userId, user.id)));
@@ -167,10 +162,9 @@ router.delete("/:inboxId", requireAuth, async (req, res) => {
 
 router.post("/:inboxId/refresh", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId as string;
+    const firebaseUid = (req as any).firebaseUid as string;
     const inboxId = req.params.inboxId as string;
-    const auth = getAuth(req);
-    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
+    const user = await getOrCreateUser(firebaseUid, (req as any).firebaseEmail || "", "");
 
     if (user.credits < 1) { res.status(402).json({ error: "Insufficient credits", code: "UPGRADE_REQUIRED" }); return; }
 
@@ -254,10 +248,9 @@ router.post("/:inboxId/refresh", requireAuth, async (req, res) => {
 
 router.get("/:inboxId/emails", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId as string;
+    const firebaseUid = (req as any).firebaseUid as string;
     const inboxId = req.params.inboxId as string;
-    const auth = getAuth(req);
-    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
+    const user = await getOrCreateUser(firebaseUid, (req as any).firebaseEmail || "", "");
 
     const [inbox] = await db.select().from(inboxesTable)
       .where(and(eq(inboxesTable.id, inboxId), eq(inboxesTable.userId, user.id)));
@@ -280,10 +273,9 @@ router.get("/:inboxId/emails", requireAuth, async (req, res) => {
 
 router.get("/:inboxId/otp-history", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId as string;
+    const firebaseUid = (req as any).firebaseUid as string;
     const inboxId = req.params.inboxId as string;
-    const auth = getAuth(req);
-    const user = await getOrCreateUser(clerkId, (auth?.sessionClaims?.email as string) || "", "");
+    const user = await getOrCreateUser(firebaseUid, (req as any).firebaseEmail || "", "");
 
     const [inbox] = await db.select().from(inboxesTable)
       .where(and(eq(inboxesTable.id, inboxId), eq(inboxesTable.userId, user.id)));

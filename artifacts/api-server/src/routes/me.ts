@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { getAuth, clerkClient } from "@clerk/express";
 import {
   db,
   usersTable,
@@ -14,39 +13,14 @@ const router = Router();
 
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const auth = getAuth(req);
-    const clerkId = auth!.userId!;
-    let email =
-      (auth?.sessionClaims?.email as string) ||
-      (auth?.sessionClaims?.primaryEmail as string) ||
-      "";
-    const name =
-      (auth?.sessionClaims?.fullName as string) ||
-      (auth?.sessionClaims?.firstName as string) ||
-      "";
+    const firebaseUid = (req as any).firebaseUid as string;
+    const email = ((req as any).firebaseEmail as string) || "";
+    const name = ((req as any).firebaseName as string) || "";
 
-    // If sessionClaims doesn't have email, try fetching from Clerk API
-    if (!email) {
-      try {
-        const clerkUser = await clerkClient.users.getUser(clerkId);
-        email =
-          clerkUser?.emailAddresses?.find(
-            (e) => e.id === clerkUser.primaryEmailAddressId,
-          )?.emailAddress ||
-          clerkUser?.emailAddresses?.[0]?.emailAddress ||
-          "";
-      } catch (e) {
-        req.log.warn({ err: e }, "Could not fetch Clerk user email");
-      }
-    }
+    let user = await getOrCreateUser(firebaseUid, email, name);
 
-    let user = await getOrCreateUser(clerkId, email, name);
-
-    // If the DB email is missing/placeholder and we now have a real one, update it.
-    // The auth helper already resolves duplicates, but this keeps the DB email current
-    // in case the lookup context changes.
-    const isDbPlaceholder =
-      !user.email || user.email.includes("@noemail.tempnest.internal");
+    // If the DB email is missing and we now have a real one, update it.
+    const isDbPlaceholder = !user.email;
     if (email && isDbPlaceholder && email !== user.email) {
       try {
         const existing = await db
@@ -125,10 +99,7 @@ router.get("/", requireAuth, async (req, res) => {
       }
     }
 
-    // Daily credit refill logic:
-    // - Use lastRefillAt if set; fall back to createdAt for existing users without it.
-    // - This prevents new users from getting an immediate refill (their lastRefillAt is set at creation).
-    // - Old users with null lastRefillAt will refill once createdAt is 24h+ in the past.
+    // Daily credit refill logic.
     const refillBasis = user.lastRefillAt || user.createdAt;
     const hoursSince =
       (now.getTime() - refillBasis.getTime()) / (1000 * 60 * 60);
@@ -164,7 +135,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     res.json({
       id: user.id,
-      clerkId: user.clerkId,
+      firebaseUid: user.firebaseUid,
       email: user.email,
       name: user.name,
       currentPlan,
@@ -193,13 +164,13 @@ router.get("/", requireAuth, async (req, res) => {
 
 router.patch("/", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId;
+    const firebaseUid = (req as any).firebaseUid as string;
     const { name } = req.body;
 
     const [user] = await db
       .update(usersTable)
       .set({ name: name || "", updatedAt: new Date() })
-      .where(eq(usersTable.clerkId, clerkId))
+      .where(eq(usersTable.firebaseUid, firebaseUid))
       .returning();
 
     if (!user) {
@@ -209,7 +180,7 @@ router.patch("/", requireAuth, async (req, res) => {
 
     res.json({
       id: user.id,
-      clerkId: user.clerkId,
+      firebaseUid: user.firebaseUid,
       email: user.email,
       name: user.name,
       currentPlan: user.currentPlan,
@@ -238,7 +209,7 @@ router.patch("/", requireAuth, async (req, res) => {
 
 router.patch("/notifications", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId;
+    const firebaseUid = (req as any).firebaseUid as string;
     const { notifyNewEmail, notifyOtp, notifyLowCredits, notifyWeeklySummary } =
       req.body;
 
@@ -256,7 +227,7 @@ router.patch("/notifications", requireAuth, async (req, res) => {
     const [user] = await db
       .update(usersTable)
       .set(updates)
-      .where(eq(usersTable.clerkId, clerkId))
+      .where(eq(usersTable.firebaseUid, firebaseUid))
       .returning();
 
     if (!user) {

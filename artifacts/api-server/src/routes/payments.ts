@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { requireAuth, getOrCreateUser } from "../lib/auth";
-import { getAuth } from "@clerk/express";
 import {
   db,
   usersTable,
@@ -246,11 +245,10 @@ async function applySubscription(
 // Build Stripe checkout URL (or fallback if no Stripe key)
 router.post("/checkout", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId;
-    const auth = getAuth(req);
+    const firebaseUid = (req as any).firebaseUid;
     const user = await getOrCreateUser(
-      clerkId,
-      (auth?.sessionClaims?.email as string) || "",
+      firebaseUid,
+      (req as any).firebaseEmail || "",
       "",
     );
     const { type, planId, creditPackId } = req.body;
@@ -322,12 +320,10 @@ router.post("/checkout", requireAuth, async (req, res) => {
 
       // Prevent downgrades to a lower plan while the current higher plan is still active.
       if (comparePlans(planId, user.currentPlan) < 0 && isPlanActive(user)) {
-        res
-          .status(400)
-          .json({
-            error:
-              "You cannot downgrade while your current plan is active. You can schedule a downgrade for when it expires, or wait until the current plan ends.",
-          });
+        res.status(400).json({
+          error:
+            "You cannot downgrade while your current plan is active. You can schedule a downgrade for when it expires, or wait until the current plan ends.",
+        });
         return;
       }
 
@@ -370,11 +366,10 @@ router.get("/verify-session", requireAuth, async (req, res) => {
       return;
     }
 
-    const clerkId = (req as any).clerkId;
-    const auth = getAuth(req);
+    const firebaseUid = (req as any).firebaseUid;
     const user = await getOrCreateUser(
-      clerkId,
-      (auth?.sessionClaims?.email as string) || "",
+      firebaseUid,
+      (req as any).firebaseEmail || "",
       "",
     );
 
@@ -454,11 +449,10 @@ router.get("/verify-session", requireAuth, async (req, res) => {
 
 router.get("/history", requireAuth, async (req, res) => {
   try {
-    const clerkId = (req as any).clerkId;
-    const auth = getAuth(req);
+    const firebaseUid = (req as any).firebaseUid;
     const user = await getOrCreateUser(
-      clerkId,
-      (auth?.sessionClaims?.email as string) || "",
+      firebaseUid,
+      (req as any).firebaseEmail || "",
       "",
     );
 

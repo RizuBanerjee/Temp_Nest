@@ -625,11 +625,11 @@ components:
     # ── User ────────────────────────────────────────────────────────
     UserProfile:
       type: object
-      required: [id, clerkId, email, name, currentPlan, credits, createdAt]
+      required: [id, firebaseUid, email, name, currentPlan, credits, createdAt]
       properties:
         id:
           type: integer
-        clerkId:
+        firebaseUid:
           type: string
         email:
           type: string
@@ -1022,11 +1022,11 @@ components:
 
     AdminUser:
       type: object
-      required: [id, clerkId, email, name, plan, credits, status, createdAt]
+      required: [id, firebaseUid, email, name, plan, credits, status, createdAt]
       properties:
         id:
           type: integer
-        clerkId:
+        firebaseUid:
           type: string
         email:
           type: string

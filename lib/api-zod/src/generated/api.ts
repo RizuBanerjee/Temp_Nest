@@ -21,7 +21,7 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetMeResponse = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
+  "firebaseUid": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
   "currentPlan": zod.enum(['free', 'pro', 'business']),
@@ -53,7 +53,7 @@ export const UpdateMeBody = zod.object({
 
 export const UpdateMeResponse = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
+  "firebaseUid": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
   "currentPlan": zod.enum(['free', 'pro', 'business']),
@@ -430,7 +430,7 @@ export const ListAdminUsersQueryParams = zod.object({
 export const ListAdminUsersResponse = zod.object({
   "users": zod.array(zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
+  "firebaseUid": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
   "plan": zod.string(),
@@ -462,7 +462,7 @@ export const UpdateAdminUserBody = zod.object({
 
 export const UpdateAdminUserResponse = zod.object({
   "id": zod.number(),
-  "clerkId": zod.string(),
+  "firebaseUid": zod.string(),
   "email": zod.string(),
   "name": zod.string(),
   "plan": zod.string(),

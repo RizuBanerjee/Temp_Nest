@@ -1,21 +1,68 @@
-import { getAuth } from "@clerk/express";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
 import { Request, Response, NextFunction } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
+const firebaseApp =
+  getApps().length === 0
+    ? initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        }),
+      })
+    : getApps()[0];
+
+export const firebaseAuth = getAuth(firebaseApp);
+
+export type AuthContext = {
+  firebaseUid: string;
+  firebaseEmail: string;
+  firebaseName: string;
+  dbUser?: typeof usersTable.$inferSelect;
+};
+
+function extractBearerToken(req: Request): string | null {
+  const header = req.headers.authorization || "";
+  if (header.startsWith("Bearer ")) return header.slice(7);
+  return null;
+}
+
+export async function decodeAuthToken(
+  req: Request,
+): Promise<DecodedIdToken | null> {
+  const token = extractBearerToken(req);
+  if (!token) return null;
+  try {
+    return await firebaseAuth.verifyIdToken(token);
+  } catch (err) {
+    return null;
+  }
+}
 
 export const requireAuth = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  const auth = getAuth(req);
-  const clerkId = auth?.userId;
-  if (!clerkId) {
+  const token = extractBearerToken(req);
+  if (!token) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  (req as any).clerkId = clerkId;
-  next();
+  try {
+    const decoded = await firebaseAuth.verifyIdToken(token);
+    (req as any).firebaseUid = decoded.uid;
+    (req as any).firebaseEmail = decoded.email || "";
+    (req as any).firebaseName = decoded.name || "";
+    next();
+  } catch (err) {
+    req.log?.warn({ err }, "Invalid Firebase ID token");
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 };
 
 export const requireAdmin = async (
@@ -23,42 +70,49 @@ export const requireAdmin = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const auth = getAuth(req);
-  const clerkId = auth?.userId;
-  if (!clerkId) {
+  const token = extractBearerToken(req);
+  if (!token) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const user = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.clerkId, clerkId))
-    .limit(1);
-  if (!user[0] || !user[0].isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
+  try {
+    const decoded = await firebaseAuth.verifyIdToken(token);
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.firebaseUid, decoded.uid))
+      .limit(1);
+    if (!user || !user.isAdmin) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    (req as any).firebaseUid = decoded.uid;
+    (req as any).firebaseEmail = decoded.email || "";
+    (req as any).firebaseName = decoded.name || "";
+    (req as any).dbUser = user;
+    next();
+  } catch (err) {
+    req.log?.warn({ err }, "Invalid Firebase ID token");
+    res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  (req as any).clerkId = clerkId;
-  (req as any).dbUser = user[0];
-  next();
 };
 
 export const getOrCreateUser = async (
-  clerkId: string,
+  firebaseUid: string,
   email: string,
   name: string,
 ) => {
-  // A real email is used as the canonical identity key. Anything else (missing,
-  // empty, or a placeholder) is treated as unknown so we never store a Clerk id
-  // in the email column.
-  const isPlaceholder = !email || email.includes("@noemail.tempnest.internal");
+  // A real email is used as the canonical identity key. Anything else (missing
+  // or empty) is treated as unknown so we never store a placeholder string.
+  const isPlaceholder = !email;
   const realEmail = isPlaceholder ? null : email;
 
-  // 1. Look up the row already tied to this Clerk session.
+  // 1. Look up the row already tied to this Firebase session.
   let [currentUser] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.clerkId, clerkId))
+    .where(eq(usersTable.firebaseUid, firebaseUid))
     .limit(1);
 
   if (currentUser) {
@@ -71,15 +125,15 @@ export const getOrCreateUser = async (
           .limit(1);
         if (emailOwner && emailOwner.id !== currentUser.id) {
           // Canonical account already exists. Remove the duplicate session row
-          // (usually a placeholder) and rebind the Clerk id to the canonical row.
+          // (usually a placeholder) and rebind the Firebase uid to the canonical row.
           // Related data cascades on delete; if you need to preserve data from
           // the duplicate row, migrate it here before deleting.
           await db.delete(usersTable).where(eq(usersTable.id, currentUser.id));
           await db
             .update(usersTable)
-            .set({ clerkId, updatedAt: new Date() })
+            .set({ firebaseUid, updatedAt: new Date() })
             .where(eq(usersTable.id, emailOwner.id));
-          emailOwner.clerkId = clerkId;
+          emailOwner.firebaseUid = firebaseUid;
           return emailOwner;
         }
         // No other owner: update this row with the real email.
@@ -114,9 +168,9 @@ export const getOrCreateUser = async (
     if (emailOwner) {
       await db
         .update(usersTable)
-        .set({ clerkId, updatedAt: new Date() })
+        .set({ firebaseUid, updatedAt: new Date() })
         .where(eq(usersTable.id, emailOwner.id));
-      emailOwner.clerkId = clerkId;
+      emailOwner.firebaseUid = firebaseUid;
       return emailOwner;
     }
   }
@@ -126,9 +180,10 @@ export const getOrCreateUser = async (
     const [newUser] = await db
       .insert(usersTable)
       .values({
-        clerkId,
+        firebaseUid,
         email: realEmail,
-        name: name || (realEmail ? realEmail.split("@")[0] : clerkId.slice(-8)),
+        name:
+          name || (realEmail ? realEmail.split("@")[0] : firebaseUid.slice(-8)),
         currentPlan: "free",
         credits: 50,
         maxCredits: 50,
@@ -148,7 +203,7 @@ export const getOrCreateUser = async (
       const retry = await db
         .select()
         .from(usersTable)
-        .where(eq(usersTable.clerkId, clerkId))
+        .where(eq(usersTable.firebaseUid, firebaseUid))
         .limit(1);
       if (retry[0]) return retry[0];
     }
