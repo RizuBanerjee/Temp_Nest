@@ -7,7 +7,7 @@ export function Logo({ className = "" }: { className?: string }) {
       className={`flex items-center gap-2 font-bold text-xl tracking-tight text-foreground ${className}`}
     >
       <img
-        src="/tempnest-logo.png"
+        src="/logo.svg"
         alt="TempNest"
         className="w-8 h-8 rounded-md object-cover"
       />

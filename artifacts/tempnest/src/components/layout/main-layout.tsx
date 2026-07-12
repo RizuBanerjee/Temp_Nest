@@ -111,7 +111,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             >
               {collapsed ? (
                 <img
-                  src="/tempnest-logo.png"
+                  src="/logo.svg"
                   alt="TempNest"
                   className="w-8 h-8 rounded-lg object-cover"
                 />
