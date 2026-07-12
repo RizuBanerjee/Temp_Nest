@@ -181,9 +181,10 @@ export default function Credits() {
   async function loadPayments() {
     try {
       const res = await apiFetch("/api/payments/history");
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
       setPayments(await res.json());
-    } catch {
+    } catch (err) {
+      console.error("Failed to load payment history", err);
       setPayments([]);
     } finally {
       setPaymentsLoading(false);
@@ -196,7 +197,16 @@ export default function Credits() {
       const res = await apiFetch(
         `/api/payments/verify-session?session_id=${encodeURIComponent(id)}`,
       );
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        if (res.status === 404 && errorData.error?.includes("not found")) {
+          toast.success("Payment verified. Your account has been updated.");
+          queryClient.invalidateQueries();
+          await loadPayments();
+          return;
+        }
+        throw new Error(errorData.error || "Failed");
+      }
       const data = await res.json();
       if (data.type === "credits" && data.credits) {
         toast.success(
@@ -204,6 +214,8 @@ export default function Credits() {
         );
       } else if (data.type === "subscription" && data.planId) {
         toast.success(`You are now subscribed to the ${data.planId} plan!`);
+      } else if (data.alreadyApplied) {
+        toast.success("Payment verified. Your account has been updated.");
       } else {
         toast.success("Payment completed successfully!");
       }

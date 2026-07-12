@@ -379,17 +379,46 @@ router.get("/verify-session", requireAuth, async (req, res) => {
       return;
     }
 
-    const [payment] = await db
+    let [payment] = await db
       .select()
       .from(paymentsTable)
       .where(eq(paymentsTable.stripeSessionId, sessionId));
 
     if (!payment) {
-      res.status(404).json({ error: "Payment session not found" });
-      return;
+      const sessionData = await stripe.checkout.sessions.retrieve(sessionId);
+      if (sessionData.payment_status !== "paid") {
+        res.status(400).json({ error: "Payment not completed" });
+        return;
+      }
+      const metadata = sessionData.metadata || {};
+      const [inserted] = await db
+        .insert(paymentsTable)
+        .values({
+          userId: user.id,
+          stripeSessionId: sessionId,
+          amount: sessionData.amount_total ? sessionData.amount_total / 100 : 0,
+          currency: sessionData.currency || "usd",
+          type: metadata.type as "credits" | "subscription",
+          planId: metadata.planId || null,
+          creditPackId: metadata.creditPackId || null,
+          creditsGranted: metadata.credits ? Number(metadata.credits) : null,
+          status: "pending",
+        })
+        .returning();
+      payment = inserted;
     }
     if (payment.userId !== user.id) {
       res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (payment.status === "completed") {
+      res.json({
+        success: true,
+        type: payment.type,
+        credits: payment.creditsGranted,
+        planId: payment.planId,
+        alreadyApplied: true,
+      });
       return;
     }
 
@@ -527,10 +556,28 @@ router.post("/webhook", async (req, res) => {
       const currency = session.currency || "usd";
 
       // Prefer the pending payment record we created at checkout for type/user safety.
-      const [payment] = await db
+      let [payment] = await db
         .select()
         .from(paymentsTable)
         .where(eq(paymentsTable.stripeSessionId, session.id));
+
+      if (!payment) {
+        const [inserted] = await db
+          .insert(paymentsTable)
+          .values({
+            userId: uid,
+            stripeSessionId: session.id,
+            amount: session.amount_total ? session.amount_total / 100 : 0,
+            currency: session.currency || "usd",
+            type: type as "credits" | "subscription",
+            planId: planId || null,
+            creditPackId: (session.metadata as any)?.creditPackId || null,
+            creditsGranted: credits ? Number(credits) : null,
+            status: "pending",
+          })
+          .returning();
+        payment = inserted;
+      }
 
       const finalType = payment?.type || type;
       const finalCredits =

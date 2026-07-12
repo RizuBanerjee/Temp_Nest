@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth-context";
 import {
   useGetMe,
   useUpdateMe,
+  useUpdateMeNotifications,
   getGetMeQueryKey,
   type UserProfile,
 } from "@workspace/api-client-react";
@@ -19,6 +20,8 @@ import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
 import { User, Shield, Bell, Palette } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
+import { firebaseAuth } from "@/lib/firebase";
+import { updateProfile } from "firebase/auth";
 
 export default function Settings() {
   const { data: user, isLoading } = useGetMe();
@@ -27,6 +30,7 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const { user: firebaseUser } = useAuth();
   const [name, setName] = useState("");
+  const updateNotifications = useUpdateMeNotifications();
   const [notifications, setNotifications] = useState({
     notifyNewEmail: true,
     notifyOtp: true,
@@ -65,14 +69,21 @@ export default function Settings() {
       return;
     }
     try {
+      const trimmedName = name.trim();
       const updated = await updateMe.mutateAsync({
-        data: { name: name.trim() },
+        data: { name: trimmedName },
       });
-      // Update the cached profile immediately so the sidebar re-renders without waiting for a refetch.
+      // Update the cached profile immediately so the sidebar re-renders.
       queryClient.setQueryData<UserProfile>(getGetMeQueryKey(), (old) =>
         old ? { ...old, name: updated.name } : updated,
       );
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      // Also update Firebase's display name so the auth context refreshes immediately.
+      if (firebaseAuth.currentUser) {
+        await updateProfile(firebaseAuth.currentUser, {
+          displayName: trimmedName,
+        });
+      }
       toast.success("Profile updated");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to update");
@@ -84,22 +95,18 @@ export default function Settings() {
     const next = { ...notifications, [key]: !notifications[key] };
     setNotifications(next);
     try {
-      const res = await apiFetch("/api/me/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: next[key] }),
+      const data = await updateNotifications.mutateAsync({
+        data: { [key]: next[key] } as any,
       });
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
       setNotifications({
-        notifyNewEmail: data.notifyNewEmail,
-        notifyOtp: data.notifyOtp,
-        notifyLowCredits: data.notifyLowCredits,
-        notifyWeeklySummary: data.notifyWeeklySummary,
+        notifyNewEmail: data.notifyNewEmail ?? true,
+        notifyOtp: data.notifyOtp ?? true,
+        notifyLowCredits: data.notifyLowCredits ?? false,
+        notifyWeeklySummary: data.notifyWeeklySummary ?? false,
       });
       toast.success("Notification preference saved");
-    } catch {
-      toast.error("Failed to save preference");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to save preference");
       setNotifications(notifications); // revert
     } finally {
       setSavingNotifications(false);
