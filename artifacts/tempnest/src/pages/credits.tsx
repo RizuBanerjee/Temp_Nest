@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearch, Link } from "wouter";
 import {
   useGetCredits,
-  useListCreditTransactions,
   useCreateCheckoutSession,
   useGetMe,
   useListPlans,
@@ -14,6 +13,22 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Zap,
   TrendingUp,
@@ -28,6 +43,7 @@ import {
   AlertCircle,
   Calendar,
   Clock,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -88,6 +104,33 @@ interface PaymentRecord {
   createdAt: string;
 }
 
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+interface CreditTransaction {
+  id: number;
+  type: string;
+  amount: number;
+  description: string;
+  balanceAfter: number;
+  createdAt: string;
+}
+
+interface HistoryControls {
+  page: number;
+  limit: number;
+  search: string;
+  sort: "desc" | "asc";
+  filter: string;
+}
+
 function CreditBar({ current, max }: { current: number; max: number }) {
   const isUnlimited = max === -1;
   const pct = isUnlimited
@@ -127,17 +170,111 @@ function CreditBar({ current, max }: { current: number; max: number }) {
   );
 }
 
+function HistoryPagination({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  const getPages = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (page <= 3) {
+        pages.push(1, 2, 3, 4, "...", totalPages);
+      } else if (page >= totalPages - 2) {
+        pages.push(
+          1,
+          "...",
+          totalPages - 3,
+          totalPages - 2,
+          totalPages - 1,
+          totalPages,
+        );
+      } else {
+        pages.push(1, "...", page - 1, page, page + 1, "...", totalPages);
+      }
+    }
+    return pages;
+  };
+
+  return (
+    <Pagination className="mt-4">
+      <PaginationContent>
+        <PaginationItem>
+          <PaginationPrevious
+            onClick={() => onPageChange(Math.max(1, page - 1))}
+            className={
+              page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"
+            }
+          />
+        </PaginationItem>
+        {getPages().map((p, i) =>
+          p === "..." ? (
+            <PaginationItem key={`ellipsis-${i}`}>
+              <span className="px-2 text-muted-foreground">...</span>
+            </PaginationItem>
+          ) : (
+            <PaginationItem key={p}>
+              <PaginationLink
+                isActive={p === page}
+                onClick={() => onPageChange(p as number)}
+                className="cursor-pointer"
+              >
+                {p}
+              </PaginationLink>
+            </PaginationItem>
+          ),
+        )}
+        <PaginationItem>
+          <PaginationNext
+            onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+            className={
+              page >= totalPages
+                ? "pointer-events-none opacity-50"
+                : "cursor-pointer"
+            }
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
+  );
+}
+
 export default function Credits() {
   const { data: wallet, isLoading: walletLoading } = useGetCredits();
-  const { data: transactions, isLoading: txLoading } =
-    useListCreditTransactions();
   const { data: user } = useGetMe();
   const { data: plans } = useListPlans();
   const checkout = useCreateCheckoutSession();
   const queryClient = useQueryClient();
   const search = useSearch();
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+
+  const [payments, setPayments] = useState<PaginatedResponse<PaymentRecord> | null>(null);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [paymentControls, setPaymentControls] = useState<HistoryControls>({
+    page: 1,
+    limit: 10,
+    search: "",
+    sort: "desc",
+    filter: "all",
+  });
+
+  const [transactions, setTransactions] = useState<PaginatedResponse<CreditTransaction> | null>(null);
+  const [txLoading, setTxLoading] = useState(true);
+  const [txControls, setTxControls] = useState<HistoryControls>({
+    page: 1,
+    limit: 10,
+    search: "",
+    sort: "desc",
+    filter: "all",
+  });
+
   const [verifying, setVerifying] = useState(false);
 
   const params = new URLSearchParams(search);
@@ -145,9 +282,53 @@ export default function Credits() {
   const error = params.get("error");
   const sessionId = params.get("session_id");
 
+  const loadPayments = useCallback(async () => {
+    setPaymentsLoading(true);
+    try {
+      const qs = new URLSearchParams();
+      qs.set("page", String(paymentControls.page));
+      qs.set("limit", String(paymentControls.limit));
+      qs.set("sort", paymentControls.sort);
+      if (paymentControls.filter !== "all") qs.set("status", paymentControls.filter);
+      if (paymentControls.search.trim()) qs.set("search", paymentControls.search.trim());
+      const res = await apiFetch(`/api/payments/history?${qs.toString()}`);
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      setPayments(await res.json());
+    } catch (err) {
+      console.error("Failed to load payment history", err);
+      setPayments(null);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  }, [paymentControls]);
+
+  const loadTransactions = useCallback(async () => {
+    setTxLoading(true);
+    try {
+      const qs = new URLSearchParams();
+      qs.set("page", String(txControls.page));
+      qs.set("limit", String(txControls.limit));
+      qs.set("sort", txControls.sort);
+      if (txControls.filter !== "all") qs.set("type", txControls.filter);
+      if (txControls.search.trim()) qs.set("search", txControls.search.trim());
+      const res = await apiFetch(`/api/credits/transactions?${qs.toString()}`);
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      setTransactions(await res.json());
+    } catch (err) {
+      console.error("Failed to load transaction history", err);
+      setTransactions(null);
+    } finally {
+      setTxLoading(false);
+    }
+  }, [txControls]);
+
   useEffect(() => {
     loadPayments();
-  }, []);
+  }, [loadPayments]);
+
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
 
   useEffect(() => {
     if (success) {
@@ -177,19 +358,6 @@ export default function Credits() {
       window.history.replaceState({}, "", "/credits");
     }
   }, [success, error, sessionId, queryClient]);
-
-  async function loadPayments() {
-    try {
-      const res = await apiFetch("/api/payments/history");
-      if (!res.ok) throw new Error(`Failed: ${res.status}`);
-      setPayments(await res.json());
-    } catch (err) {
-      console.error("Failed to load payment history", err);
-      setPayments([]);
-    } finally {
-      setPaymentsLoading(false);
-    }
-  }
 
   async function verifySession(id: string) {
     setVerifying(true);
@@ -221,6 +389,7 @@ export default function Credits() {
       }
       queryClient.invalidateQueries();
       await loadPayments();
+      await loadTransactions();
     } catch (err: any) {
       toast.error(
         err?.message || "Could not verify payment. It may still be processing.",
@@ -304,6 +473,9 @@ export default function Credits() {
   const txTypeColor = (type: string) =>
     type === "debit" ? "text-red-400" : "text-emerald-400";
 
+  const paymentRows = payments?.data ?? [];
+  const transactionRows = transactions?.data ?? [];
+
   return (
     <MainLayout>
       <div className="flex-1 overflow-y-auto p-6 md:p-8">
@@ -320,7 +492,6 @@ export default function Credits() {
             </p>
           </div>
 
-          {/* Payment status banner */}
           {verifying && (
             <Card className="p-4 border-primary/30 bg-primary/5">
               <div className="flex items-center gap-3 text-sm">
@@ -350,7 +521,6 @@ export default function Credits() {
             </Card>
           )}
 
-          {/* Wallet Card */}
           <Card className="p-6 bg-card border-border/60">
             <div className="flex items-center gap-2 mb-5">
               <Zap size={18} className="text-primary" />
@@ -440,7 +610,6 @@ export default function Credits() {
             </Card>
           )}
 
-          {/* Upgrade Plan */}
           <Card className="p-6 bg-card border-border/60 space-y-4">
             <div className="flex items-center gap-2 mb-1">
               <Crown size={18} className="text-primary" />
@@ -546,7 +715,6 @@ export default function Credits() {
             </div>
           </Card>
 
-          {/* Credit Cost Reference */}
           <Card className="p-5 bg-card border-border/60">
             <div className="flex items-center gap-2 mb-4">
               <Info size={16} className="text-primary" />
@@ -569,7 +737,6 @@ export default function Credits() {
             </div>
           </Card>
 
-          {/* Credit Packs */}
           <div>
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Package size={18} className="text-primary" />
@@ -615,117 +782,274 @@ export default function Credits() {
             </div>
           </div>
 
-          {/* Payment History */}
           <div>
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <AlertCircle size={18} className="text-primary" />
               Payment History
             </h2>
+            <Card className="p-4 bg-card border-border/60 mb-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Input
+                    type="date"
+                    placeholder="Filter by date"
+                    className="pl-9"
+                    value={paymentControls.search}
+                    onChange={(e) =>
+                      setPaymentControls((prev) => ({
+                        ...prev,
+                        search: e.target.value,
+                        page: 1,
+                      }))
+                    }
+                  />
+                </div>
+                <Select
+                  value={paymentControls.filter}
+                  onValueChange={(v) =>
+                    setPaymentControls((prev) => ({ ...prev, filter: v, page: 1 }))
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-40">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={paymentControls.sort}
+                  onValueChange={(v) =>
+                    setPaymentControls((prev) => ({ ...prev, sort: v as "desc" | "asc", page: 1 }))
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-44">
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Newest first</SelectItem>
+                    <SelectItem value="asc">Oldest first</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(paymentControls.limit)}
+                  onValueChange={(v) =>
+                    setPaymentControls((prev) => ({
+                      ...prev,
+                      limit: Number(v),
+                      page: 1,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-28">
+                    <SelectValue placeholder="Rows" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 rows</SelectItem>
+                    <SelectItem value="10">10 rows</SelectItem>
+                    <SelectItem value="20">20 rows</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </Card>
             {paymentsLoading ? (
               <div className="space-y-2">
                 {[...Array(4)].map((_, i) => (
                   <Skeleton key={i} className="h-14 rounded-lg" />
                 ))}
               </div>
-            ) : !payments.length ? (
+            ) : !paymentRows.length ? (
               <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
                 <AlertCircle size={32} className="mx-auto mb-3 opacity-20" />
-                <p>No payments yet.</p>
+                <p>No payments found.</p>
                 <p className="text-xs mt-1">
-                  Your Stripe receipts will appear here.
+                  Try changing the filters or date range.
                 </p>
               </div>
             ) : (
-              <div className="space-y-1">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/40 mb-1">
-                  <div className="col-span-5">Item</div>
-                  <div className="col-span-3">Amount</div>
-                  <div className="col-span-2">Status</div>
-                  <div className="col-span-2 text-right">Date</div>
-                </div>
-                {payments.map((p) => (
-                  <div
-                    key={p.id}
-                    className="grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-lg bg-card/50 border border-border/30 hover:bg-card/80 transition-colors"
-                  >
-                    <div className="col-span-5 min-w-0">
-                      <p className="text-sm truncate">
-                        {p.type === "credits"
-                          ? `${p.creditsGranted?.toLocaleString() ?? ""} Credits`
-                          : `Subscription — ${p.planId ? p.planId.charAt(0).toUpperCase() + p.planId.slice(1) : ""}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {p.type === "credits" ? "Credit pack" : "Plan upgrade"}
-                      </p>
-                    </div>
-                    <div className="col-span-3 font-mono text-sm">
-                      ${p.amount.toFixed(2)} {p.currency.toUpperCase()}
-                    </div>
-                    <div className="col-span-2">
-                      <Badge
-                        className={`text-[10px] ${p.status === "completed" ? "bg-emerald-500/15 text-emerald-400" : p.status === "pending" ? "bg-amber-500/15 text-amber-400" : "bg-red-500/15 text-red-400"}`}
-                      >
-                        {p.status}
-                      </Badge>
-                    </div>
-                    <div className="col-span-2 text-right text-xs text-muted-foreground">
-                      {new Date(p.createdAt).toLocaleDateString()}
-                    </div>
+              <>
+                <div className="space-y-1">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/40 mb-1">
+                    <div className="col-span-5">Item</div>
+                    <div className="col-span-3">Amount</div>
+                    <div className="col-span-2">Status</div>
+                    <div className="col-span-2 text-right">Date</div>
                   </div>
-                ))}
-              </div>
+                  {paymentRows.map((p) => (
+                    <div
+                      key={p.id}
+                      className="grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-lg bg-card/50 border border-border/30 hover:bg-card/80 transition-colors"
+                    >
+                      <div className="col-span-5 min-w-0">
+                        <p className="text-sm truncate">
+                          {p.type === "credits"
+                            ? `${p.creditsGranted?.toLocaleString() ?? ""} Credits`
+                            : `Subscription — ${p.planId ? p.planId.charAt(0).toUpperCase() + p.planId.slice(1) : ""}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.type === "credits" ? "Credit pack" : "Plan upgrade"}
+                        </p>
+                      </div>
+                      <div className="col-span-3 font-mono text-sm">
+                        ${p.amount.toFixed(2)} {p.currency.toUpperCase()}
+                      </div>
+                      <div className="col-span-2">
+                        <Badge
+                          className={`text-[10px] ${p.status === "completed" ? "bg-emerald-500/15 text-emerald-400" : p.status === "pending" ? "bg-amber-500/15 text-amber-400" : "bg-red-500/15 text-red-400"}`}
+                        >
+                          {p.status}
+                        </Badge>
+                      </div>
+                      <div className="col-span-2 text-right text-xs text-muted-foreground">
+                        {new Date(p.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {payments && (
+                  <HistoryPagination
+                    page={payments.pagination.page}
+                    totalPages={payments.pagination.totalPages}
+                    onPageChange={(p) =>
+                      setPaymentControls((prev) => ({ ...prev, page: p }))
+                    }
+                  />
+                )}
+              </>
             )}
           </div>
 
-          {/* Transaction History */}
           <div>
             <h2 className="text-lg font-semibold mb-4">Transaction History</h2>
+            <Card className="p-4 bg-card border-border/60 mb-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Input
+                    type="text"
+                    placeholder="Search by date (YYYY-MM-DD) or description"
+                    className="pl-9"
+                    value={txControls.search}
+                    onChange={(e) =>
+                      setTxControls((prev) => ({
+                        ...prev,
+                        search: e.target.value,
+                        page: 1,
+                    }))
+                    }
+                  />
+                </div>
+                <Select
+                  value={txControls.filter}
+                  onValueChange={(v) =>
+                    setTxControls((prev) => ({ ...prev, filter: v, page: 1 }))
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-40">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    <SelectItem value="credit">Credits earned</SelectItem>
+                    <SelectItem value="debit">Credits deducted</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={txControls.sort}
+                  onValueChange={(v) =>
+                    setTxControls((prev) => ({ ...prev, sort: v as "desc" | "asc", page: 1 }))
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-44">
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Newest first</SelectItem>
+                    <SelectItem value="asc">Oldest first</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(txControls.limit)}
+                  onValueChange={(v) =>
+                    setTxControls((prev) => ({
+                      ...prev,
+                      limit: Number(v),
+                      page: 1,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-28">
+                    <SelectValue placeholder="Rows" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 rows</SelectItem>
+                    <SelectItem value="10">10 rows</SelectItem>
+                    <SelectItem value="20">20 rows</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </Card>
             {txLoading ? (
               <div className="space-y-2">
                 {[...Array(6)].map((_, i) => (
                   <Skeleton key={i} className="h-14 rounded-lg" />
                 ))}
               </div>
-            ) : !transactions?.length ? (
+            ) : !transactionRows.length ? (
               <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-xl">
                 <Zap size={32} className="mx-auto mb-3 opacity-20" />
-                <p>No transactions yet.</p>
+                <p>No transactions found.</p>
                 <p className="text-xs mt-1">
-                  Your credits will appear here as you use TempNest.
+                  Try changing the filters or date range.
                 </p>
               </div>
             ) : (
-              <div className="space-y-1">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/40 mb-1">
-                  <div className="col-span-1"></div>
-                  <div className="col-span-6">Description</div>
-                  <div className="col-span-3 text-right">Amount</div>
-                  <div className="col-span-2 text-right">Balance</div>
-                </div>
-                {transactions.map((tx) => (
-                  <div
-                    key={tx.id}
-                    className="grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-lg bg-card/50 border border-border/30 hover:bg-card/80 transition-colors"
-                  >
-                    <div className="col-span-1">{txTypeIcon(tx.type)}</div>
-                    <div className="col-span-6 min-w-0">
-                      <p className="text-sm truncate">{tx.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(tx.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <div
-                      className={`col-span-3 font-mono text-sm font-semibold text-right ${txTypeColor(tx.type)}`}
-                    >
-                      {tx.type === "debit" ? "−" : "+"}
-                      {tx.amount}
-                    </div>
-                    <div className="col-span-2 font-mono text-xs text-muted-foreground text-right">
-                      {tx.balanceAfter}
-                    </div>
+              <>
+                <div className="space-y-1">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/40 mb-1">
+                    <div className="col-span-1"></div>
+                    <div className="col-span-6">Description</div>
+                    <div className="col-span-3 text-right">Amount</div>
+                    <div className="col-span-2 text-right">Balance</div>
                   </div>
-                ))}
-              </div>
+                  {transactionRows.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-lg bg-card/50 border border-border/30 hover:bg-card/80 transition-colors"
+                    >
+                      <div className="col-span-1">{txTypeIcon(tx.type)}</div>
+                      <div className="col-span-6 min-w-0">
+                        <p className="text-sm truncate">{tx.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(tx.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <div
+                        className={`col-span-3 font-mono text-sm font-semibold text-right ${txTypeColor(tx.type)}`}
+                      >
+                        {tx.type === "debit" ? "−" : "+"}
+                        {tx.amount}
+                      </div>
+                      <div className="col-span-2 font-mono text-xs text-muted-foreground text-right">
+                        {tx.balanceAfter}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {transactions && (
+                  <HistoryPagination
+                    page={transactions.pagination.page}
+                    totalPages={transactions.pagination.totalPages}
+                    onPageChange={(p) =>
+                      setTxControls((prev) => ({ ...prev, page: p }))
+                    }
+                  />
+                )}
+              </>
             )}
           </div>
         </div>

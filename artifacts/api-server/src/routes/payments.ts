@@ -7,14 +7,12 @@ import {
   creditTransactionsTable,
   subscriptionsTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, sql } from "drizzle-orm";
 import { CREDIT_PACKS, PLANS, comparePlans, isPlanActive } from "./plans";
 
 const router = Router();
 
 function getAppUrl(): string {
-  // Always use the canonical server URL for Stripe redirects. Never rely on request headers,
-  // which can be attacker-controlled and lead to open-redirects.
   return process.env.APP_URL || "http://localhost";
 }
 
@@ -39,7 +37,6 @@ async function applyCreditPurchase(
       .where(eq(usersTable.id, userId));
     if (!user) return;
 
-    // Only the worker that successfully flips the pending payment to completed may run side effects.
     const existingPayment = await tx
       .select()
       .from(paymentsTable)
@@ -70,9 +67,8 @@ async function applyCreditPurchase(
       });
       claimed = true;
     }
-    if (!claimed) return; // another worker already fulfilled this session
+    if (!claimed) return;
 
-    // Credit packs should be usable: raise the cap so purchased credits are not silently clipped.
     const targetMaxCredits = Math.max(user.maxCredits, user.credits + credits);
     const newCredits = user.credits + credits;
 
@@ -103,7 +99,6 @@ async function cancelStripeSubscription(
   try {
     await stripe.subscriptions.cancel(stripeSubscriptionId);
   } catch (err) {
-    // Stripe may already cancel the subscription; do not fail the upgrade.
     console.warn(
       "Failed to cancel previous Stripe subscription",
       stripeSubscriptionId,
@@ -117,9 +112,6 @@ function getPlanExpiryDate(
   plan: { billingPeriod: string },
   currentPeriodEnd?: Date | null,
 ): Date {
-  // Prefer the Stripe subscription period end. If it is missing or somehow in the past,
-  // fall back to a future date based on the plan's billing period so the paid plan is not
-  // immediately expired by the next /me call.
   if (currentPeriodEnd && currentPeriodEnd.getTime() > now.getTime()) {
     return currentPeriodEnd;
   }
@@ -145,7 +137,6 @@ async function applySubscription(
   if (!plan) return;
 
   await db.transaction(async (tx) => {
-    // Only the worker that successfully flips the pending payment to completed may run side effects.
     const existingPayment = await tx
       .select()
       .from(paymentsTable)
@@ -177,7 +168,7 @@ async function applySubscription(
       });
       claimed = true;
     }
-    if (!claimed) return; // another worker already fulfilled this session
+    if (!claimed) return;
 
     const [user] = await tx
       .select()
@@ -188,8 +179,6 @@ async function applySubscription(
     const now = new Date();
     const planExpiry = getPlanExpiryDate(now, plan, currentPeriodEnd);
 
-    // The checkout endpoint already rejects active downgrades, so any paid subscription we apply here is either
-    // an upgrade, a renewal, or a new subscription after expiry. In all cases we activate it immediately.
     await tx
       .update(usersTable)
       .set({
@@ -242,7 +231,6 @@ async function applySubscription(
   });
 }
 
-// Build Stripe checkout URL (or fallback if no Stripe key)
 router.post("/checkout", requireAuth, async (req, res) => {
   try {
     const firebaseUid = (req as any).firebaseUid;
@@ -318,7 +306,6 @@ router.post("/checkout", requireAuth, async (req, res) => {
         return;
       }
 
-      // Prevent downgrades to a lower plan while the current higher plan is still active.
       if (comparePlans(planId, user.currentPlan) < 0 && isPlanActive(user)) {
         res.status(400).json({
           error:
@@ -485,15 +472,64 @@ router.get("/history", requireAuth, async (req, res) => {
       "",
     );
 
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.limit as string, 10) || 10),
+    );
+    const status = (req.query.status as string) || "all";
+    const search = (req.query.search as string) || "";
+    const sort = (req.query.sort as string) === "asc" ? "asc" : "desc";
+
+    const conditions: (ReturnType<typeof eq> | undefined)[] = [
+      eq(paymentsTable.userId, user.id),
+    ];
+
+    if (status !== "all") {
+      conditions.push(eq(paymentsTable.status, status as any));
+    }
+
+    if (search.trim()) {
+      const searchDate = new Date(search.trim());
+      if (!isNaN(searchDate.getTime())) {
+        const start = new Date(searchDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(searchDate);
+        end.setHours(23, 59, 59, 999);
+        const dateRange = and(
+          gte(paymentsTable.createdAt, start),
+          lte(paymentsTable.createdAt, end),
+        );
+        if (dateRange) conditions.push(dateRange);
+      }
+    }
+
+    const whereClause = and(...conditions);
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(paymentsTable)
+      .where(whereClause);
+
+    const total = countResult?.count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const currentPage = Math.min(page, totalPages);
+    const offset = (currentPage - 1) * limit;
+
     const payments = await db
       .select()
       .from(paymentsTable)
-      .where(eq(paymentsTable.userId, user.id))
-      .orderBy(desc(paymentsTable.createdAt))
-      .limit(100);
+      .where(whereClause)
+      .orderBy(
+        sort === "asc"
+          ? asc(paymentsTable.createdAt)
+          : desc(paymentsTable.createdAt),
+      )
+      .limit(limit)
+      .offset(offset);
 
-    res.json(
-      payments.map((p) => ({
+    res.json({
+      data: payments.map((p) => ({
         id: p.id,
         amount: p.amount,
         currency: p.currency,
@@ -504,7 +540,13 @@ router.get("/history", requireAuth, async (req, res) => {
         status: p.status,
         createdAt: p.createdAt.toISOString(),
       })),
-    );
+      pagination: {
+        page: currentPage,
+        limit,
+        total,
+        totalPages,
+      },
+    });
   } catch (err) {
     req.log.error({ err }, "Failed to list payment history");
     res.status(500).json({ error: "Internal server error" });
@@ -555,7 +597,6 @@ router.post("/webhook", async (req, res) => {
       const amount = session.amount_total ? session.amount_total / 100 : 0;
       const currency = session.currency || "usd";
 
-      // Prefer the pending payment record we created at checkout for type/user safety.
       let [payment] = await db
         .select()
         .from(paymentsTable)

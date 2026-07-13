@@ -115,6 +115,22 @@ function SuspendedDetector() {
 
 function SuspendedScreen() {
   const { signOutUser } = useAuth();
+  const [, setLocation] = useLocation();
+  const [loading, setLoading] = useState(false);
+
+  async function handleSignOut() {
+    setLoading(true);
+    try {
+      await signOutUser();
+    } catch (err) {
+      console.error("Sign out failed", err);
+    } finally {
+      setSuspended(false);
+      setLocation("/");
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-[100dvh] flex items-center justify-center bg-background px-4">
       <div className="max-w-md w-full text-center space-y-6">
@@ -129,8 +145,12 @@ function SuspendedScreen() {
             this is a mistake.
           </p>
         </div>
-        <Button onClick={() => signOutUser()} className="gap-2">
-          <LogOut size={18} />
+        <Button onClick={handleSignOut} disabled={loading} className="gap-2">
+          {loading ? (
+            <Loader2 className="animate-spin" size={18} />
+          ) : (
+            <LogOut size={18} />
+          )}
           Sign Out
         </Button>
       </div>
@@ -489,13 +509,11 @@ function RouterContent() {
         <SuspendedScreen />
       ) : (
         <Switch>
-          {/* Public */}
           <Route path="/" component={HomeRoute} />
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route path="/pricing" component={Pricing} />
 
-          {/* Protected */}
           <Route
             path="/dashboard"
             component={createProtectedRoute(Dashboard)}
@@ -516,7 +534,6 @@ function RouterContent() {
           />
           <Route path="/settings" component={createProtectedRoute(Settings)} />
 
-          {/* Admin */}
           <Route
             path="/admin"
             component={createProtectedRoute(AdminDashboard)}
