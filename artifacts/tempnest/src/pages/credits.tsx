@@ -43,7 +43,6 @@ import {
   AlertCircle,
   Calendar,
   Clock,
-  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -478,6 +477,15 @@ export default function Credits() {
 
   return (
     <MainLayout>
+      <style>{`
+        input[type="date"].date-filter::-webkit-calendar-picker-indicator {
+          opacity: 0.7;
+          cursor: pointer;
+        }
+        .dark input[type="date"].date-filter::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+        }
+      `}</style>
       <div className="flex-1 overflow-y-auto p-6 md:p-8">
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="flex items-center gap-3">
@@ -790,11 +798,11 @@ export default function Credits() {
             <Card className="p-4 bg-card border-border/60 mb-3">
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={16} />
                   <Input
                     type="date"
-                    placeholder="Filter by date"
-                    className="pl-9"
+                    placeholder="mm-dd-yyyy"
+                    className="pl-9 date-filter"
                     value={paymentControls.search}
                     onChange={(e) =>
                       setPaymentControls((prev) => ({
@@ -928,11 +936,11 @@ export default function Credits() {
             <Card className="p-4 bg-card border-border/60 mb-3">
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={16} />
                   <Input
-                    type="text"
-                    placeholder="Search by date (YYYY-MM-DD) or description"
-                    className="pl-9"
+                    type="date"
+                    placeholder="mm-dd-yyyy"
+                    className="pl-9 date-filter"
                     value={txControls.search}
                     onChange={(e) =>
                       setTxControls((prev) => ({

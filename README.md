@@ -1,6 +1,6 @@
 # TempNest
 
-A full-stack temporary email SaaS platform with credit-based usage, subscription plans, admin dashboard, OTP extraction, and real-time email syncing via Mail.tm integration.
+A full-stack temporary email SaaS platform with credit-based usage, subscription plans, admin dashboard, OTP extraction, and real-time email syncing via Mail.tm integration. Authentication is powered by Firebase.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -42,13 +42,14 @@ TempNest provides disposable email addresses via the Mail.tm API. Users can crea
 - **Daily Credit Refill** — Automatic credit replenishment every 24 hours
 
 ### User Features
-- **Clerk Authentication** — OAuth (Google, GitHub, etc.) and email/password sign-in
+- **Firebase Authentication** — OAuth (Google) and email/password sign-in
 - **Dashboard** — Overview of credits, inbox count, recent emails, and stats
 - **Analytics** — 30-day usage charts (Recharts)
 - **Settings** — Profile, theme (light/dark/system), notification preferences
 - **Pricing Page** — Plan comparison and Stripe checkout
 - **Credit Purchases** — One-time credit packs via Stripe
 - **Subscription Management** — Upgrade/downgrade plans with Stripe billing
+- **Paginated History** — Payment and credit-transaction histories with date search, status/type filters, and 5/10/20 row pagination
 
 ### Admin Features
 - **Admin Dashboard** — Site overview with user/inbox/email counts
@@ -70,7 +71,7 @@ TempNest provides disposable email addresses via the Mail.tm API. Users can crea
 | shadcn/ui | latest | UI components |
 | TanStack Query | 5.90.21 | Data fetching |
 | wouter | 3.3.5 | Client routing |
-| Clerk | 6.10.4 | Authentication |
+| Firebase | 11.10.0 | Authentication |
 | Recharts | 2.15.2 | Charts |
 | Framer Motion | 12.23.24 | Animations |
 | Zod | 3.25.76 | Validation |
@@ -85,7 +86,7 @@ TempNest provides disposable email addresses via the Mail.tm API. Users can crea
 | TypeScript | 5.9.3 | Language |
 | Drizzle ORM | 0.45.2 | Database ORM |
 | PostgreSQL | 14+ | Database |
-| Clerk Express | 2.1.30 | Auth middleware |
+| Firebase Admin | 14.1.0 | Auth verification |
 | Stripe | 22.2.2 | Payments |
 | Pino | 9.14.0 | Logging |
 | Zod | 3.25.76 | Validation |
@@ -109,16 +110,16 @@ TempNest provides disposable email addresses via the Mail.tm API. Users can crea
 workspace/
 ├── artifacts/
 │   ├── tempnest/          # React frontend (Vite)
-│   ├── api-server/          # Express API server
-│   └── mockup-sandbox/      # Design sandbox
+│   ├── api-server/        # Express API server
+│   └── mockup-sandbox/    # Design sandbox
 ├── lib/
-│   ├── db/                  # Database schema + Drizzle ORM
-│   ├── api-client-react/    # Generated React Query hooks
-│   └── api-zod/             # Generated Zod schemas
-├── lib/integrations/
-│   └── openapi.yaml         # OpenAPI contract
+│   ├── db/                # Database schema + Drizzle ORM
+│   ├── api-client-react/  # Generated React Query hooks
+│   └── api-zod/           # Generated Zod schemas
+├── lib/api-spec/
+│   └── openapi.yaml       # OpenAPI contract definition
 ├── scripts/
-│   └── ...                  # Utility scripts
+│   └── ...                # Utility scripts
 ├── pnpm-workspace.yaml
 ├── package.json
 └── tsconfig.base.json
@@ -140,10 +141,16 @@ pnpm --filter @workspace/api-spec run codegen
 
 ### Auth Flow
 
-- Clerk handles authentication via JWT tokens
-- `getOrCreateUser()` in `auth.ts` syncs Clerk users to the local DB
+- Firebase handles authentication on the client (email/password + Google)
+- The client sends the Firebase ID token as a `Bearer` header on every request
+- `requireAuth` middleware in the API server verifies the token with Firebase Admin
+- `getOrCreateUser()` in `auth.ts` syncs Firebase users to the local DB
 - Admin privileges are enforced server-side via `requireAdmin` middleware
 - Admin users get unlimited credits (`credits: 999999`, `maxInboxes: -1`)
+
+### Suspended Accounts
+
+If a user's account is suspended (`status = 'suspended'`), the API returns `403 ACCOUNT_SUSPENDED`. The frontend shows a suspended screen with a working **Sign Out** button that clears the suspended state and redirects the user home.
 
 ---
 
@@ -153,11 +160,14 @@ pnpm --filter @workspace/api-spec run codegen
 
 | File | Purpose |
 |------|---------|
-| `artifacts/api-server/src/app.ts` | Express app setup, Clerk middleware |
+| `artifacts/api-server/src/app.ts` | Express app setup |
 | `artifacts/api-server/src/lib/auth.ts` | `requireAuth`, `requireAdmin`, `getOrCreateUser` |
+| `artifacts/api-server/src/lib/firebase.ts` | Firebase Admin SDK initialization |
 | `artifacts/api-server/src/lib/mailtm.ts` | Mail.tm API client, OTP extractor |
 | `artifacts/api-server/src/routes/` | All API routes (me, inboxes, emails, credits, payments, admin, etc.) |
 | `artifacts/tempnest/src/App.tsx` | Root component with routing |
+| `artifacts/tempnest/src/lib/auth-context.tsx` | Firebase auth provider |
+| `artifacts/tempnest/src/lib/firebase.ts` | Firebase client SDK config |
 | `artifacts/tempnest/src/pages/` | All page components |
 | `artifacts/tempnest/src/components/layout/main-layout.tsx` | Sidebar layout with admin navigation |
 | `lib/db/src/schema/` | All database schemas |
@@ -184,10 +194,12 @@ pnpm --filter @workspace/api-spec run codegen
 | `GET /api/emails/:id` | Auth | Email detail |
 | `PATCH /api/emails/:id/read` | Auth | Mark as read |
 | `GET /api/credits` | Auth | Current balance |
-| `GET /api/credits/transactions` | Auth | Transaction history |
+| `GET /api/credits/transactions` | Auth | Paginated transaction history |
 | `GET /api/plans` | Auth | Available plans |
 | `GET /api/subscriptions/current` | Auth | Current subscription |
 | `POST /api/payments/checkout` | Auth | Stripe checkout session |
+| `GET /api/payments/history` | Auth | Paginated payment history |
+| `GET /api/payments/verify-session` | Auth | Verify Stripe checkout session |
 | `POST /api/payments/webhook` | Public | Stripe webhook handler |
 | `GET /api/dashboard/summary` | Auth | Dashboard data |
 | `GET /api/analytics` | Auth | Usage analytics |
@@ -211,7 +223,7 @@ pnpm --filter @workspace/api-spec run codegen
 | `/inboxes` | Auth | Inbox management |
 | `/inboxes/:id` | Auth | Inbox detail |
 | `/emails/:id` | Auth | Email detail |
-| `/credits` | Auth | Credit wallet |
+| `/credits` | Auth | Credit wallet + history |
 | `/analytics` | Auth | Usage analytics |
 | `/settings` | Auth | Account settings |
 | `/admin` | Admin | Admin overview |
@@ -227,7 +239,7 @@ pnpm --filter @workspace/api-spec run codegen
 
 | Table | Description |
 |-------|-------------|
-| `users` | User profiles synced from Clerk |
+| `users` | User profiles synced from Firebase |
 | `inboxes` | Temporary email inboxes (Mail.tm accounts) |
 | `emails` | Email messages synced from Mail.tm |
 | `otp_records` | Extracted OTP/verification codes |
@@ -240,10 +252,10 @@ pnpm --filter @workspace/api-spec run codegen
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | SERIAL | Primary key |
-| `clerk_id` | TEXT | Clerk user ID |
+| `firebase_uid` | TEXT | Firebase user ID (unique) |
 | `email` | TEXT | User email (unique) |
 | `name` | TEXT | Display name |
-| `plan` | ENUM | free, pro, business |
+| `current_plan` | ENUM | free, pro, business |
 | `credits` | INT | Current credit balance |
 | `max_credits` | INT | Maximum credit cap |
 | `daily_refill` | INT | Daily refill amount |
@@ -266,8 +278,8 @@ pnpm --filter @workspace/api-spec run codegen
 
 - Node.js 24+
 - pnpm 9+
-- PostgreSQL database
-- Clerk account (for auth)
+- PostgreSQL database (Neon recommended)
+- Firebase project (for auth)
 - Stripe account (for payments)
 
 ### Installation
@@ -277,7 +289,7 @@ pnpm --filter @workspace/api-spec run codegen
 pnpm install
 
 # Set up environment variables
-# Copy .env.example or configure via your deployment platform
+# Configure via your deployment platform or a .env file
 
 # Push database schema
 pnpm --filter @workspace/db run push
@@ -299,35 +311,46 @@ pnpm run build
 pnpm --filter @workspace/api-server run dev
 
 # Start the frontend (in another terminal)
-pm --filter @workspace/tempnest run dev
+pnpm --filter @workspace/tempnest run dev
 ```
 
 ---
 
 ## Environment Variables
 
-### Required
+### Frontend (Vercel)
 
-| Variable | Description | Used By |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | API server |
-| `PORT` | Server port | API server |
-| `SESSION_SECRET` | Session encryption secret | API server |
-| `CLERK_PUBLISHABLE_KEY` | Clerk public key | Frontend |
-| `CLERK_SECRET_KEY` | Clerk secret key | API server |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Same as above, for Vite | Frontend |
-| `BASE_PATH` | Base URL path for frontend | Frontend |
+| Variable | Description |
+|----------|-------------|
+| `VITE_FIREBASE_API_KEY` | Firebase web API key |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase auth domain |
+| `VITE_FIREBASE_PROJECT_ID` | Firebase project ID |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
+| `VITE_FIREBASE_APP_ID` | Firebase app ID |
+| `VITE_API_URL` | Backend URL, e.g. `https://your-api.onrender.com` |
+
+### Backend (Render)
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string (Neon) |
+| `PORT` | Server port (set automatically by Render) |
+| `SESSION_SECRET` | Session encryption secret |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Full JSON service-account key from Firebase |
+| `APP_URL` | Frontend URL, e.g. `https://your-app.vercel.app` |
+| `STRIPE_SECRET_KEY` | Stripe secret key |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret |
+| `STRIPE_PRO_PRICE_ID` | Stripe price ID for Pro plan |
+| `STRIPE_BUSINESS_PRICE_ID` | Stripe price ID for Business plan |
+| `ADMIN_EMAIL` | Email address allowed to claim admin |
 
 ### Optional
 
 | Variable | Description | Used By |
 |----------|-------------|---------|
-| `STRIPE_SECRET_KEY` | Stripe secret key | API server |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret | API server |
-| `STRIPE_PUBLISHABLE_KEY` | Stripe public key | Frontend |
-| `ADMIN_EMAIL` | Admin email address | API server |
-| `VITE_CLERK_PROXY_URL` | Clerk proxy URL | Frontend |
 | `NODE_ENV` | development or production | Both |
+| `BASE_PATH` | Base URL path for frontend | Frontend |
 
 ---
 
@@ -359,12 +382,6 @@ pnpm --filter @workspace/api-server run dev
 
 # Run frontend
 pnpm --filter @workspace/tempnest run dev
-
-# Run API server tests
-pnpm --filter @workspace/api-server run test
-
-# Run frontend tests
-pnpm --filter @workspace/tempnest run test
 ```
 
 ### Adding a New API Route
@@ -385,7 +402,7 @@ pnpm --filter @workspace/tempnest run test
 
 ## Admin Access
 
-The admin email is hardcoded to `rizubanerjee456@gmail.com`. When a user with this email logs in, they can be granted admin privileges via the `/api/admin/claim` endpoint.
+The admin email is configured via the `ADMIN_EMAIL` environment variable. When a user with that email logs in, they can claim admin privileges via the `/api/admin/claim` endpoint.
 
 Admin users receive:
 - Unlimited credits (999999)
@@ -396,7 +413,7 @@ Admin users receive:
 
 ### Admin Middleware
 
-- `requireAuth` — checks Clerk authentication
+- `requireAuth` — checks Firebase authentication
 - `requireAdmin` — checks `isAdmin` flag in database
 
 ### Admin Routes
@@ -450,37 +467,92 @@ Admin users (`isAdmin = true`) have unlimited credits and no inbox limits.
 ### Credit Packs
 
 One-time purchase packs available:
-- 100 credits
 - 500 credits
-- 1000 credits
+- 1200 credits
+- 3000 credits
+- 10000 credits
+
+---
+
+## History Pagination & Filtering
+
+The **Credits** page now includes paginated, searchable histories for both payments and credit transactions:
+
+### Payment History
+- **Rows per page:** 5, 10, or 20
+- **Filter by status:** All, Completed, Pending, Failed
+- **Search by date:** Pick a date from the date picker to show only payments from that day
+- **Sort:** Newest first or oldest first
+
+### Transaction History
+- **Rows per page:** 5, 10, or 20
+- **Filter by type:** All, Credits earned, Credits deducted
+- **Search by date or description:** Enter a date (`YYYY-MM-DD`) or part of the description
+- **Sort:** Newest first or oldest first
+
+These controls are implemented in the frontend at `artifacts/tempnest/src/pages/credits.tsx` and the backend endpoints at `artifacts/api-server/src/routes/payments.ts` and `artifacts/api-server/src/routes/credits.ts`.
 
 ---
 
 ## Deployment
 
-### Replit
+### Recommended stack
 
-The project is designed to run on Replit with:
-- Path-based routing (`/` for frontend, `/api` for backend)
-- Workflow-based process management
-- Automatic workflow restart on code changes
+- **Frontend:** Vercel
+- **Backend:** Render
+- **Database:** Neon
+- **Auth:** Firebase Authentication
+- **Payments:** Stripe
 
-### Environment Setup
+### 1. Firebase setup
 
-1. Set all required environment variables in Replit Secrets
-2. Ensure `DATABASE_URL` points to a valid PostgreSQL instance
-3. Configure Clerk and Stripe keys
-4. Deploy workflows will auto-start
+1. Create a Firebase project at https://console.firebase.google.com
+2. Enable **Email/Password** and **Google** sign-in providers
+3. Register a web app and copy the Firebase config values
+4. Go to **Project Settings → Service accounts** and generate a private key JSON
 
-### Build
+### 2. Neon database setup
 
-```bash
-pnpm run build
+1. Create a project at https://neon.tech
+2. Create a database and copy the connection string
+3. Run the schema push:
+   ```bash
+   DATABASE_URL=<neon-connection-string> pnpm --filter @workspace/db run push-force
+   ```
+
+### 3. Render backend setup
+
+1. Create a new Web Service on Render
+2. Connect your GitHub/GitLab repository
+3. Set the environment variables listed above
+4. Build command: `pnpm install && pnpm --filter @workspace/api-server run build`
+5. Start command: `pnpm --filter @workspace/api-server run start`
+6. Add the Render URL as an authorized domain in Firebase Authentication
+
+### 4. Vercel frontend setup
+
+1. Create a new project on Vercel
+2. Connect your repository
+3. Set the Firebase environment variables
+4. Set `VITE_API_URL` to your Render backend URL
+5. Build command: `pnpm install && pnpm --filter @workspace/tempnest run build`
+6. Output directory: `artifacts/tempnest/dist`
+7. Add `vercel.json` at the repo root:
+
+```json
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://your-render-backend.com/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
 ```
 
-### Stripe Webhooks
+8. Add your Vercel domain as an authorized domain in Firebase Authentication
 
-Configure Stripe webhook endpoint to `https://yourdomain.com/api/payments/webhook` with the `payment_intent.succeeded` and `invoice.payment_succeeded` events.
+### 5. Stripe webhooks
+
+Configure Stripe webhook endpoint to `https://your-render-backend.com/api/payments/webhook` with the `checkout.session.completed` event.
 
 ---
 
@@ -493,7 +565,7 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 ## Acknowledgments
 
 - [Mail.tm](https://mail.tm) for providing the temporary email API
-- [Clerk](https://clerk.com) for authentication infrastructure
+- [Firebase](https://firebase.google.com) for authentication infrastructure
 - [Stripe](https://stripe.com) for payment processing
 - [shadcn/ui](https://ui.shadcn.com) for the component design system
 - [Replit](https://replit.com) for the development platform
