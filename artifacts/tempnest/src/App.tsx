@@ -32,6 +32,8 @@ import Credits from "./pages/credits";
 import Analytics from "./pages/analytics";
 import Settings from "./pages/settings";
 import Pricing from "./pages/pricing";
+import Privacy from "./pages/privacy";
+import Terms from "./pages/terms";
 import AdminDashboard from "./pages/admin/index";
 import AdminUsers from "./pages/admin/users";
 import AdminInboxes from "./pages/admin/inboxes";
@@ -48,6 +50,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { Logo } from "./components/logo";
+import { BackButton } from "./components/back-button";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -197,11 +200,12 @@ function AuthCard({
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
+        <div className="text-left">
+          <BackButton fallback="/" className="mb-4" />
           <div className="flex items-center justify-center mb-3">
             <Logo />
           </div>
-          <p className="text-muted-foreground text-sm">{subtitle}</p>
+          <p className="text-muted-foreground text-sm text-center">{subtitle}</p>
         </div>
         <div className="bg-card/60 backdrop-blur border border-border rounded-2xl p-6 sm:p-8 shadow-2xl">
           <div className="text-center mb-6">
@@ -513,6 +517,8 @@ function RouterContent() {
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route path="/pricing" component={Pricing} />
+          <Route path="/privacy" component={Privacy} />
+          <Route path="/terms" component={Terms} />
 
           <Route
             path="/dashboard"

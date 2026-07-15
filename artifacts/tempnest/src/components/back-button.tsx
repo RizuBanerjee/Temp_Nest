@@ -1,12 +1,18 @@
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function BackButton({ className = "" }: { className?: string }) {
+export function BackButton({
+  className = "",
+  fallback = "/dashboard",
+}: {
+  className?: string;
+  fallback?: string;
+}) {
   function handleBack() {
     if (window.history.length > 1) {
       window.history.back();
     } else {
-      window.location.href = "/dashboard";
+      window.location.href = fallback;
     }
   }
 

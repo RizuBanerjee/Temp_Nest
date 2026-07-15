@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { PublicLayout } from "@/components/layout/public-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Shield,
   Zap,
@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
+import { ScrollReveal } from "@/components/scroll-reveal";
 
 interface TempInbox {
   id: string;
@@ -191,7 +192,7 @@ function TryItSection() {
   return (
     <section id="try-it" className="py-24 bg-background">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-12">
+        <ScrollReveal className="text-center mb-12">
           <Badge className="bg-primary/10 text-primary border-primary/20 mb-4 px-3 py-1">
             No account needed
           </Badge>
@@ -202,7 +203,7 @@ function TryItSection() {
             Your temporary email address is ready. Use it anywhere, receive
             emails instantly — no sign-up required.
           </p>
-        </div>
+        </ScrollReveal>
 
         <div className="max-w-2xl mx-auto">
           {/* Email address display */}
@@ -350,7 +351,7 @@ function TryItSection() {
               Want to save emails, extract OTPs, and manage multiple inboxes?
             </p>
             <Link href="/sign-up">
-              <Button className="gap-2 h-11 px-8">
+              <Button className="gap-2 h-11 px-8 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
                 Create free account <ArrowRight size={16} />
               </Button>
             </Link>
@@ -486,7 +487,23 @@ function TryItSection() {
   );
 }
 
+function useScrollToHash() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (!hash) return;
+    const element = document.getElementById(hash);
+    if (!element) return;
+    const timer = setTimeout(() => {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [location]);
+}
+
 export default function Home() {
+  useScrollToHash();
   return (
     <PublicLayout>
       {/* Hero Section */}
@@ -523,7 +540,7 @@ export default function Home() {
               <Link href="/sign-up">
                 <Button
                   size="lg"
-                  className="w-full sm:w-auto h-12 px-8 text-base shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_25px_rgba(124,58,237,0.5)] transition-shadow"
+                  className="w-full sm:w-auto h-12 px-8 text-base shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:shadow-[0_0_30px_rgba(124,58,237,0.55)] hover:-translate-y-0.5 transition-all duration-300"
                 >
                   Start For Free
                 </Button>
@@ -532,7 +549,7 @@ export default function Home() {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="w-full sm:w-auto h-12 px-8 text-base"
+                  className="w-full sm:w-auto h-12 px-8 text-base hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300"
                 >
                   Try it now — no signup
                 </Button>
@@ -551,13 +568,13 @@ export default function Home() {
         className="py-24 bg-card/30 border-y border-border/40"
       >
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
+          <ScrollReveal className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Engineered for speed.</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Everything you need to bypass spam, verify accounts, and protect
               your identity.
             </p>
-          </div>
+          </ScrollReveal>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {[
@@ -603,10 +620,20 @@ export default function Home() {
                 color: "text-rose-400",
                 bg: "bg-rose-400/10",
               },
-            ].map((f) => (
-              <div
+            ].map((f, i) => (
+              <motion.div
                 key={f.title}
-                className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ delay: i * 0.08, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                  boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                  transition: { duration: 0.15, ease: "easeOut" },
+                }}
+                className="p-6 rounded-2xl bg-background border border-border hover:border-primary/50 transition-colors cursor-default"
               >
                 <div
                   className={`w-12 h-12 rounded-lg ${f.bg} flex items-center justify-center ${f.color} mb-6`}
@@ -615,7 +642,7 @@ export default function Home() {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{f.title}</h3>
                 <p className="text-muted-foreground text-sm">{f.desc}</p>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -624,25 +651,27 @@ export default function Home() {
       {/* CTA */}
       <section className="py-24">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to protect your real inbox?
-          </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto mb-8">
-            Join thousands of users who use TempNest to keep spam out and stay
-            anonymous online.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/sign-up">
-              <Button size="lg" className="h-12 px-8">
-                Get Started Free
-              </Button>
-            </Link>
-            <Link href="/pricing">
-              <Button size="lg" variant="outline" className="h-12 px-8">
-                View Pricing
-              </Button>
-            </Link>
-          </div>
+          <ScrollReveal>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Ready to protect your real inbox?
+            </h2>
+            <p className="text-muted-foreground max-w-xl mx-auto mb-8">
+              Join thousands of users who use TempNest to keep spam out and stay
+              anonymous online.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/sign-up">
+                <Button size="lg" className="h-12 px-8 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
+                  Get Started Free
+                </Button>
+              </Link>
+              <Link href="/pricing">
+                <Button size="lg" variant="outline" className="h-12 px-8 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300">
+                  View Pricing
+                </Button>
+              </Link>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
     </PublicLayout>

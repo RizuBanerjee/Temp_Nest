@@ -15,18 +15,18 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
           <Logo />
 
           <nav className="hidden md:flex items-center gap-6">
-            <a
-              href="#features"
+            <Link
+              href="/#features"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Features
-            </a>
-            <a
-              href="#try-it"
+            </Link>
+            <Link
+              href="/#try-it"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Try it
-            </a>
+            </Link>
             <Link
               href="/pricing"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -69,12 +69,16 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between">
           <p>© {new Date().getFullYear()} TempNest. All rights reserved.</p>
           <div className="flex items-center gap-4 mt-4 md:mt-0">
-            <span className="hover:text-foreground transition-colors cursor-pointer">
-              Privacy Policy
-            </span>
-            <span className="hover:text-foreground transition-colors cursor-pointer">
-              Terms of Service
-            </span>
+            <Link href="/privacy">
+              <span className="hover:text-foreground transition-colors cursor-pointer">
+                Privacy Policy
+              </span>
+            </Link>
+            <Link href="/terms">
+              <span className="hover:text-foreground transition-colors cursor-pointer">
+                Terms of Service
+              </span>
+            </Link>
           </div>
         </div>
       </footer>
