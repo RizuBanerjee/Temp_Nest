@@ -3,10 +3,21 @@ import { MainLayout } from "@/components/layout/main-layout";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users, Inbox, Mail, DollarSign, Zap, TrendingUp, UserCheck, Building2 } from "lucide-react";
+import { motion } from "framer-motion";
+
+const MotionCard = motion(Card);
 
 function StatCard({ label, value, icon: Icon, isLoading }: { label: string; value: number | string; icon: any; isLoading: boolean }) {
   return (
-    <Card className="p-5 bg-card border-border/60">
+    <MotionCard
+      className="p-5 bg-card border-border/60 group hover:border-primary/30 transition-colors"
+      whileHover={{
+        y: -6,
+        scale: 1.02,
+        boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+        transition: { duration: 0.15, ease: "easeOut" },
+      }}
+    >
       <div className="flex items-start justify-between mb-3">
         <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
         <Icon size={16} className="text-primary opacity-70" />
@@ -14,7 +25,7 @@ function StatCard({ label, value, icon: Icon, isLoading }: { label: string; valu
       {isLoading ? <Skeleton className="h-8 w-20" /> : (
         <p className="text-2xl font-bold font-mono">{typeof value === "number" ? value.toLocaleString() : value}</p>
       )}
-    </Card>
+    </MotionCard>
   );
 }
 
@@ -27,7 +38,7 @@ export default function AdminDashboard() {
         <div className="max-w-6xl mx-auto space-y-8">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              Admin Dashboard
+              Admin overview
             </h1>
             <p className="text-muted-foreground text-sm mt-1">Platform-wide metrics and controls.</p>
           </div>
@@ -44,7 +55,15 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <Card className="p-5 bg-card border-border/60">
+            <MotionCard
+              className="p-5 bg-card border-border/60 hover:border-primary/30 transition-colors"
+              whileHover={{
+                y: -6,
+                scale: 1.02,
+                boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                transition: { duration: 0.15, ease: "easeOut" },
+              }}
+            >
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Today</p>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -56,8 +75,16 @@ export default function AdminDashboard() {
                   {isLoading ? <Skeleton className="h-4 w-10" /> : <span className="font-mono font-semibold">{stats?.emailsToday ?? 0}</span>}
                 </div>
               </div>
-            </Card>
-            <Card className="p-5 bg-card border-border/60">
+            </MotionCard>
+            <MotionCard
+              className="p-5 bg-card border-border/60 hover:border-primary/30 transition-colors"
+              whileHover={{
+                y: -6,
+                scale: 1.02,
+                boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                transition: { duration: 0.15, ease: "easeOut" },
+              }}
+            >
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Plan Distribution</p>
               {isLoading ? <Skeleton className="h-16 w-full" /> : (
                 <div className="space-y-3">
@@ -74,7 +101,7 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               )}
-            </Card>
+            </MotionCard>
           </div>
         </div>
       </div>

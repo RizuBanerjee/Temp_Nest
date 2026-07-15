@@ -24,6 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { motion } from "framer-motion";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -69,7 +70,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       ? location === item.href
       : location === item.href || location.startsWith(item.href + "/");
     const content = (
-      <div
+      <motion.div
         className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer ${
           isActive
             ? isAdmin
@@ -77,10 +78,16 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
               : "bg-primary/10 text-primary font-medium"
             : "text-muted-foreground hover:bg-muted hover:text-foreground"
         } ${collapsed ? "justify-center px-2" : ""}`}
+        whileHover={{
+          y: -6,
+          scale: 1.02,
+          boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+          transition: { duration: 0.15, ease: "easeOut" },
+        }}
       >
         <item.icon size={18} />
         {!collapsed && <span>{item.label}</span>}
-      </div>
+      </motion.div>
     );
 
     if (collapsed) {

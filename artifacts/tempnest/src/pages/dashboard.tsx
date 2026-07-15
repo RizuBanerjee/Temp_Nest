@@ -98,7 +98,7 @@ export default function Dashboard() {
                     <span className="text-xs text-muted-foreground mb-1">{stat.sub}</span>
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground/60 leading-tight hidden group-hover:block">{stat.desc}</p>
+                <p className="text-xs text-muted-foreground/60 leading-tight opacity-0 group-hover:opacity-100 transition-opacity">{stat.desc}</p>
               </MotionCard>
             ))}
           </div>

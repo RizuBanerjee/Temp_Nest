@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 
 export default function InboxDetail({ params }: { params: { id: string } }) {
   const id = params.id;
@@ -243,8 +244,14 @@ export default function InboxDetail({ params }: { params: { id: string } }) {
             <div className="space-y-2">
               {emails.map((email) => (
                 <Link key={email.id} href={`/emails/${email.id}`}>
-                  <div
+                  <motion.div
                     className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors hover:border-primary/30 hover:bg-card/80 ${email.isRead ? "border-border/40 bg-card/20" : "border-border/60 bg-card"}`}
+                    whileHover={{
+                      y: -6,
+                      scale: 1.02,
+                      boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                      transition: { duration: 0.15, ease: "easeOut" },
+                    }}
                   >
                     <div className="mt-1.5">
                       {email.hasOtp ? (
@@ -284,7 +291,7 @@ export default function InboxDetail({ params }: { params: { id: string } }) {
                         minute: "2-digit",
                       })}
                     </div>
-                  </div>
+                  </motion.div>
                 </Link>
               ))}
             </div>

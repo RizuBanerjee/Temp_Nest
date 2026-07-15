@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, Legend
 } from "recharts";
 import { TrendingUp, Mail, Key, Zap, Inbox } from "lucide-react";
+import { motion } from "framer-motion";
 
 const CHART_COLORS = {
   emails: "#8b5cf6",
@@ -16,9 +17,19 @@ const CHART_COLORS = {
   inboxes: "#f59e0b",
 };
 
+const MotionCard = motion(Card);
+
 function StatCard({ label, value, icon: Icon, isLoading, color, desc }: { label: string; value: number; icon: any; isLoading: boolean; color: string; desc: string }) {
   return (
-    <Card className="p-4 bg-card border-border/60">
+    <MotionCard
+      className="p-4 bg-card border-border/60 group hover:border-primary/30 transition-colors"
+      whileHover={{
+        y: -6,
+        scale: 1.02,
+        boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+        transition: { duration: 0.15, ease: "easeOut" },
+      }}
+    >
       <div className="flex items-start justify-between mb-2">
         <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
         <Icon size={16} className={color} />
@@ -27,7 +38,7 @@ function StatCard({ label, value, icon: Icon, isLoading, color, desc }: { label:
         <p className="text-2xl font-bold font-mono mb-1">{value.toLocaleString()}</p>
       )}
       <p className="text-xs text-muted-foreground">{desc}</p>
-    </Card>
+    </MotionCard>
   );
 }
 
