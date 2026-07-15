@@ -36,6 +36,9 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+
+const MotionCard = motion(Card);
 
 function InboxCard({ inbox }: { inbox: any }) {
   const [copied, setCopied] = useState(false);
@@ -59,7 +62,15 @@ function InboxCard({ inbox }: { inbox: any }) {
 
   return (
     <Link href={`/inboxes/${inbox.id}`}>
-      <Card className="p-5 bg-card border-border/60 hover:border-primary/40 transition-all cursor-pointer group hover:shadow-sm">
+      <MotionCard
+        className="p-5 bg-card border-border/60 hover:border-primary/40 transition-colors cursor-pointer group"
+        whileHover={{
+          y: -6,
+          scale: 1.02,
+          boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+          transition: { duration: 0.15, ease: "easeOut" },
+        }}
+      >
         <div className="flex items-start justify-between mb-3 gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -113,7 +124,7 @@ function InboxCard({ inbox }: { inbox: any }) {
             </span>
           </div>
         </div>
-      </Card>
+      </MotionCard>
     </Link>
   );
 }

@@ -47,6 +47,9 @@ import {
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { motion } from "framer-motion";
+
+const MotionCard = motion(Card);
 
 const CREDIT_PACKS = [
   {
@@ -638,9 +641,15 @@ export default function Credits() {
                 const canScheduleDowngrade = lower && active && !user?.nextPlan;
 
                 return (
-                  <div
+                  <motion.div
                     key={plan.id}
-                    className={`rounded-xl border p-4 ${plan.id === "pro" ? "border-primary/40 bg-primary/5" : "border-border/60 bg-card/50"}`}
+                    className={`rounded-xl border p-4 transition-colors hover:border-primary/50 ${plan.id === "pro" ? "border-primary/40 bg-primary/5" : "border-border/60 bg-card/50"}`}
+                    whileHover={{
+                      y: -6,
+                      scale: 1.02,
+                      boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                      transition: { duration: 0.15, ease: "easeOut" },
+                    }}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-semibold">{plan.name}</span>
@@ -717,7 +726,7 @@ export default function Credits() {
                         Available after current plan expires
                       </p>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -752,9 +761,15 @@ export default function Credits() {
             </h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {CREDIT_PACKS.map((pack) => (
-                <Card
+                <MotionCard
                   key={pack.id}
-                  className={`p-4 relative border ${pack.highlight ? "border-primary/50 bg-primary/5" : "border-border/60 bg-card"}`}
+                  className={`p-4 relative border transition-colors hover:border-primary/50 ${pack.highlight ? "border-primary/50 bg-primary/5" : "border-border/60 bg-card"}`}
+                  whileHover={{
+                    y: -6,
+                    scale: 1.02,
+                    boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                    transition: { duration: 0.15, ease: "easeOut" },
+                  }}
                 >
                   {pack.highlight && (
                     <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
@@ -785,7 +800,7 @@ export default function Credits() {
                   >
                     Buy Now
                   </Button>
-                </Card>
+                </MotionCard>
               ))}
             </div>
           </div>

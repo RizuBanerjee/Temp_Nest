@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { Logo } from "@/components/logo";
 import { BackButton } from "@/components/back-button";
+import { motion } from "framer-motion";
 
 const PLANS = [
   {
@@ -168,13 +169,19 @@ export default function Pricing() {
               comparePlans(plan.id, user?.currentPlan || "free") < 0;
             const isDowngradeBlocked = isLower && isPlanActive();
             return (
-              <div
+              <motion.div
                 key={plan.id}
-                className={`relative rounded-2xl border p-8 ${
+                className={`relative rounded-2xl border p-8 transition-colors hover:border-primary/50 ${
                   plan.highlight
                     ? "border-primary/50 bg-primary/5 shadow-[0_0_40px_rgba(124,58,237,0.15)]"
                     : "border-border/60 bg-card"
                 }`}
+                whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                  boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                  transition: { duration: 0.15, ease: "easeOut" },
+                }}
               >
                 {plan.highlight && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -240,7 +247,7 @@ export default function Pricing() {
                     Available after your current plan expires
                   </p>
                 )}
-              </div>
+              </motion.div>
             );
           })}
         </div>

@@ -1,10 +1,14 @@
 import { useGetDashboardSummary } from "@workspace/api-client-react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Mail, Inbox, Key, Zap, ArrowRight, TrendingUp } from "lucide-react";
+import { motion } from "framer-motion";
+
+const MotionCard = motion(Card);
 
 function CreditBar({ current, max }: { current: number; max: number }) {
   const isUnlimited = max === -1;
@@ -72,7 +76,16 @@ export default function Dashboard() {
                 color: "text-emerald-400",
               },
             ].map((stat) => (
-              <Card key={stat.label} className="p-4 bg-card border-border/60 group hover:border-primary/30 transition-colors">
+              <MotionCard
+                key={stat.label}
+                className="p-4 bg-card border-border/60 group hover:border-primary/30 transition-colors"
+                whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                  boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                  transition: { duration: 0.15, ease: "easeOut" },
+                }}
+              >
                 <div className="flex items-start justify-between mb-3">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</p>
                   <stat.icon size={16} className={`${stat.color} opacity-70 mt-0.5`} />
@@ -86,7 +99,7 @@ export default function Dashboard() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground/60 leading-tight hidden group-hover:block">{stat.desc}</p>
-              </Card>
+              </MotionCard>
             ))}
           </div>
 
@@ -100,7 +113,15 @@ export default function Dashboard() {
           {/* Quick Actions */}
           <div className="grid sm:grid-cols-3 gap-4">
             <Link href="/inboxes">
-              <Card className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group">
+              <MotionCard
+                className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group"
+                whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                  boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                  transition: { duration: 0.15, ease: "easeOut" },
+                }}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -113,10 +134,18 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>
-              </Card>
+              </MotionCard>
             </Link>
             <Link href="/credits">
-              <Card className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group">
+              <MotionCard
+                className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group"
+                whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                  boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                  transition: { duration: 0.15, ease: "easeOut" },
+                }}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
@@ -129,10 +158,18 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>
-              </Card>
+              </MotionCard>
             </Link>
             <Link href="/analytics">
-              <Card className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group">
+              <MotionCard
+                className="p-4 bg-card border-border/60 hover:border-primary/30 cursor-pointer transition-colors group"
+                whileHover={{
+                  y: -6,
+                  scale: 1.02,
+                  boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                  transition: { duration: 0.15, ease: "easeOut" },
+                }}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
@@ -145,7 +182,7 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>
-              </Card>
+              </MotionCard>
             </Link>
           </div>
 
@@ -170,16 +207,22 @@ export default function Dashboard() {
                 <p className="font-medium">No emails yet</p>
                 <p className="text-sm mt-1">Create an inbox to start receiving emails.</p>
                 <Link href="/inboxes">
-                  <button className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90">
-                    Create Inbox
-                  </button>
+                  <Button className="mt-4">Create Inbox</Button>
                 </Link>
               </div>
             ) : (
               <div className="space-y-2">
                 {summary.recentEmails.map((email) => (
                   <Link key={email.id} href={`/emails/${email.id}`}>
-                    <div className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors hover:border-primary/30 hover:bg-card/80 ${email.isRead ? "border-border/40 bg-card/30" : "border-border/60 bg-card"}`}>
+                    <motion.div
+                      className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors hover:border-primary/30 hover:bg-card/80 ${email.isRead ? "border-border/40 bg-card/30" : "border-border/60 bg-card"}`}
+                      whileHover={{
+                        y: -6,
+                        scale: 1.02,
+                        boxShadow: "0 20px 40px -12px rgba(124, 58, 237, 0.25)",
+                        transition: { duration: 0.15, ease: "easeOut" },
+                      }}
+                    >
                       <div className="mt-1">
                         {!email.isRead && <div className="w-2 h-2 rounded-full bg-primary" />}
                         {email.isRead && <div className="w-2 h-2 rounded-full bg-transparent" />}
@@ -203,7 +246,7 @@ export default function Dashboard() {
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(email.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
-                    </div>
+                    </motion.div>
                   </Link>
                 ))}
               </div>
